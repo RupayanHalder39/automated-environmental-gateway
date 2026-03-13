@@ -1,0 +1,17 @@
+{
+  "_comment_target": "ES2020 gives modern JS features while staying compatible with Node runtimes.",
+  "_comment_module": "CommonJS matches Node.js default module system for backend code.",
+  "_comment_rootDir": "Source code lives in src so the compiler knows where to start.",
+  "_comment_outDir": "Compiled JS will be emitted to dist for clean build output.",
+  "_comment_esModuleInterop": "Improves compatibility with CommonJS packages like express.",
+  "_comment_strict": "Strict mode catches type issues early for safer production code.",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "rootDir": "src",
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "strict": true
+  },
+  "include": ["src"]
+}

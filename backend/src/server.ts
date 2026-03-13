@@ -1,35 +1,22 @@
-import "dotenv/config";
-import { Pool } from "pg";
 import app from "./app";
+import { PORT } from "./config";
+import { db, testConnection } from "./utils/db";
 
 // Purpose: central bootstrap for the backend server.
 // This is where environment config, DB connectivity, and the HTTP server come together.
 // Note: logging, request tracing, and global error handling are configured in app.ts
 // so they apply uniformly to every module route.
 
-// ---- PostgreSQL connection ----
-// We use a connection pool for scalability under concurrent requests.
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-async function verifyDatabaseConnection() {
-  // Purpose: fail fast if DB is unreachable.
-  // This simple query confirms the connection and avoids silent runtime errors later.
-  const result = await pool.query("SELECT NOW() AS now");
-  return result.rows[0];
-}
-
 async function startServer() {
   try {
-    const dbCheck = await verifyDatabaseConnection();
+    // Verify DB connection early so we fail fast if config is invalid.
+    const dbCheck = await testConnection();
     // Plain-language log: confirms DB is reachable.
     console.log("Database connection established at:", dbCheck.now);
 
     // Purpose: Start the HTTP server after DB is ready.
-    const port = Number(process.env.PORT) || 3000;
-    app.listen(port, () => {
-      console.log(`Backend server running on port ${port}`);
+    app.listen(PORT, () => {
+      console.log(`Backend server running on port ${PORT}`);
     });
   } catch (err) {
     // If DB connection fails, exit immediately so orchestration can restart.
@@ -54,5 +41,5 @@ async function startServer() {
 
 startServer();
 
-// Export pool for services to reuse when DB logic is implemented.
-export { pool };
+// Export shared pool for services to reuse when DB logic is implemented.
+export { db };

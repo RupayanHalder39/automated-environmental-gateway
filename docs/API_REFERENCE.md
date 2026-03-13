@@ -2,10 +2,14 @@
 
 This consolidated reference is built from the DevelopmentPhases plans and aligned to the approved Figma UI. It is intended for implementation and frontend integration.
 DTOs live in `/Users/rupayan/automated-environmental-gateway/backend/src/types` and are referenced by all controllers.
+The shared DB pool is defined in `/Users/rupayan/automated-environmental-gateway/backend/src/utils/db.ts` and used by services.
+Example query helpers live in `/Users/rupayan/automated-environmental-gateway/backend/src/services/database.ts`.
 
 ## Conventions
 - Base path: `/api/v1`
 - Response envelope: `{ data, error }`
+  - Success: `data` contains the DTO payload
+  - Failure: `error` contains `{ code, message }`
 - All DTO names match Figma field names to reduce frontend mapping.
 
 ---
@@ -97,6 +101,10 @@ DTOs live in `/Users/rupayan/automated-environmental-gateway/backend/src/types` 
 }
 ```
 
+### Pagination Notes (History Readings)
+- Responses include `page`, `pageSize`, and `total` alongside `data`.
+- This keeps large time-series queries scalable.
+
 ### DB Tables
 - `sensor_readings`, `alerts`, `devices`
 
@@ -143,6 +151,7 @@ DTOs live in `/Users/rupayan/automated-environmental-gateway/backend/src/types` 
 - `PATCH /api/v1/alerts/:id/acknowledge`
 - `PATCH /api/v1/alerts/:id/resolve`
 - `GET /api/v1/alerts/summary`
+- `POST /api/v1/alerts/trigger`
 
 ### Example Response (AlertDTO)
 ```json
@@ -173,6 +182,7 @@ DTOs live in `/Users/rupayan/automated-environmental-gateway/backend/src/types` 
 - `GET /api/v1/anomalies/summary`
 - `GET /api/v1/anomalies/by-sensor/:sensor_id`
 - `PATCH /api/v1/anomalies/settings`
+- `POST /api/v1/anomalies`
 
 ### Example Response (AnomalyDTO)
 ```json
