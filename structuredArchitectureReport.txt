@@ -1,0 +1,301 @@
+Totally get what you’re aiming for here — this is a solid, full‑fledged dashboard spec, and I’ve reviewed the project in read‑only mode as requested. Below is the structured architecture report based on the code in `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign`, with no file changes made.
+
+**Read‑Only Scan Summary**
+- I scanned the full project tree. It includes `node_modules` (large), plus `src`, config, and assets.
+- No files were modified.
+
+**1. Project Type**
+- **Frontend framework:** React (18)
+- **Build tool:** Vite (`vite.config.ts`)
+- **Routing:** React Router (`src/app/routes.ts`)
+- **Styling:** Tailwind CSS 4 + custom CSS tokens (`src/styles/*`)
+- **UI library:** Radix UI / shadcn-style components in `src/app/components/ui`
+- **Charts:** Recharts
+- **Icons:** Lucide
+- **Entry:** `index.html` + `src/main.tsx`
+
+**2. Folder Structure (pruned, no `node_modules`)**
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/index.html`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/package.json`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/main.tsx`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/App.tsx`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/routes.ts`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/components/DashboardLayout.tsx`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/components/figma/ImageWithFallback.tsx`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/components/ui/*`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/*`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/styles/*`
+- `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/imports/pasted_text/iot-env-dashboard.md`
+
+**3. Pages, Major Components, UI Modules**
+- **Layout**
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/components/DashboardLayout.tsx`
+  - Sidebar nav, top search bar, notifications, system status, user menu
+- **Pages**
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/Dashboard.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/DeviceHealth.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/HistoricalData.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/RulesEngine.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/DataSanity.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/BulkDataSync.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/PublicAPI.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/Reports.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/Alerts.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/SystemStatus.tsx`
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/pages/Settings.tsx`
+- **UI Modules**
+  - `/Users/rupayan/AUTOMATED_ENVIRONMENTAL_GATEWAY_FigmaDesign/src/app/components/ui/*`
+  - Cards, tables, dialogs, dropdowns, selects, tabs, badges, charts, calendar, etc.
+
+**4. Components Related to Requested Domains**
+- **Dashboard:** `Dashboard.tsx`
+- **Map view:** `Dashboard.tsx` (stylized map panel with sensor markers)
+- **Sensor cards / activity:** `Dashboard.tsx` (activity feed + detail dialog)
+- **Historical charts:** `HistoricalData.tsx` (Recharts line chart)
+- **Alerts:** `Alerts.tsx`
+- **Device health:** `DeviceHealth.tsx`
+- **Rules engine:** `RulesEngine.tsx`
+- **Reports:** `Reports.tsx`
+- **API usage:** `PublicAPI.tsx`
+- **Bulk sync monitoring:** `BulkDataSync.tsx`
+- **Anomaly detection:** `DataSanity.tsx`
+- **System status:** `SystemStatus.tsx`
+
+---
+
+## UI Feature → Likely Backend API Needs
+
+**Dashboard**
+- Map with sensor markers and AQI status
+- Activity feed + sensor detail dialog
+- Stats (total sensors, online, avg AQI, active alerts)
+- Likely APIs:
+  - Live sensor list with location + latest readings
+  - Real-time status updates
+  - Alert summary counts
+
+**Device Health**
+- Device list with status, heartbeat, signal, battery, maintenance flag
+- Filters by location and status
+- Device detail dialog
+- Likely APIs:
+  - Device inventory and heartbeat status
+  - Battery + signal metrics
+  - Maintenance status
+
+**Historical Data**
+- Time‑series chart with date range + metric + location filters
+- Summary stats (avg, max, min, alerts triggered)
+- Recent readings table
+- Likely APIs:
+  - Historical sensor readings
+  - Aggregated stats
+  - Alert count in range
+
+**Rules Engine**
+- Rule list with status toggle, delete
+- Rule builder dialog (metric, operator, threshold, location, action)
+- Likely APIs:
+  - CRUD for alert rules
+  - Rule evaluation history
+  - Rule status toggling
+
+**Alerts**
+- Active alerts list, full alerts table
+- Resolve / dismiss controls
+- Likely APIs:
+  - Alert feed (active/resolved/dismissed)
+  - Alert state transitions
+
+**Data Sanity / Anomaly Detection**
+- Rejected readings log
+- Toggle anomaly filter + auto‑reject
+- Validation rule display
+- Likely APIs:
+  - Anomaly logs
+  - Anomaly config toggles
+  - Validation rules list
+
+**Bulk Data Sync**
+- Batch packet chart and batch logs
+- Metrics for received / rejected / duration
+- Likely APIs:
+  - Bulk sync metrics
+  - Batch upload logs
+  - Packet validation stats
+
+**Public API Management**
+- API endpoint docs
+- API key list, create/revoke
+- Rate limit config
+- Usage chart
+- Likely APIs:
+  - API key CRUD
+  - Rate limit settings
+  - Usage stats
+
+**Reports**
+- Report generation (zone, date range)
+- List of generated reports and PDF download
+- Likely APIs:
+  - Report generation job
+  - Report list + metadata
+  - Report file download
+
+**System Status**
+- Service status cards and uptime metrics
+- Resource utilization
+- Deployment info
+- Likely APIs:
+  - Service health status
+  - System metrics
+  - Deployment metadata
+
+---
+
+## 5. Required Backend Endpoints (Proposed)
+
+**Sensors & Live Data**
+- `GET /api/sensors`
+- `GET /api/sensors/live`
+- `GET /api/sensors/{sensorId}`
+- `GET /api/sensors/{sensorId}/latest`
+
+**Historical Data**
+- `GET /api/sensors/history?metric=aqi&from=...&to=...&location=...`
+- `GET /api/sensors/history/summary?metric=...&from=...&to=...`
+
+**Device Health**
+- `GET /api/devices`
+- `GET /api/devices/{deviceId}`
+- `GET /api/devices/health`
+- `GET /api/devices/heartbeats?from=...&to=...`
+
+**Alerts**
+- `GET /api/alerts?status=active|resolved|dismissed`
+- `POST /api/alerts/{alertId}/resolve`
+- `POST /api/alerts/{alertId}/dismiss`
+
+**Rules Engine**
+- `GET /api/rules`
+- `POST /api/rules`
+- `PATCH /api/rules/{ruleId}`
+- `POST /api/rules/{ruleId}/enable`
+- `POST /api/rules/{ruleId}/disable`
+- `DELETE /api/rules/{ruleId}`
+
+**Anomaly Detection / Data Sanity**
+- `GET /api/anomalies`
+- `GET /api/validation-rules`
+- `PATCH /api/anomaly-config` (enable/disable)
+
+**Bulk Sync**
+- `GET /api/bulk-sync/metrics`
+- `GET /api/bulk-sync/batches`
+- `GET /api/bulk-sync/batches/{batchId}`
+
+**Reports**
+- `POST /api/reports`
+- `GET /api/reports`
+- `GET /api/reports/{reportId}`
+- `GET /api/reports/{reportId}/download`
+
+**Public API Management**
+- `GET /api/api-keys`
+- `POST /api/api-keys`
+- `DELETE /api/api-keys/{keyId}`
+- `GET /api/api-usage`
+- `PATCH /api/rate-limits`
+
+**System Status**
+- `GET /api/system/services`
+- `GET /api/system/resources`
+- `GET /api/system/deployment`
+
+**Auth / User Settings (implied by UI)**
+- `GET /api/user/profile`
+- `PATCH /api/user/profile`
+- `PATCH /api/user/password`
+- `PATCH /api/user/preferences`
+
+---
+
+## 6. Core Data Entities
+
+- **User**
+- **Session**
+- **Location/Zone**
+- **Sensor**
+- **SensorReading**
+- **DeviceGateway**
+- **DeviceHeartbeat**
+- **DeviceMetric** (battery, signal, maintenance)
+- **Alert**
+- **AlertRule**
+- **AlertAction**
+- **AnomalyLog**
+- **ValidationRule**
+- **BulkSyncBatch**
+- **BulkSyncPacketSummary**
+- **Report**
+- **ApiKey**
+- **RateLimitConfig**
+- **ServiceStatus**
+- **SystemMetric**
+- **NotificationPreference**
+- **SystemConfig**
+
+---
+
+## 7. Proposed Backend Architecture (Industrial IoT Focus)
+
+**Ingestion & Edge**
+- Edge gateways push sensor readings via MQTT/HTTP.
+- Use a gateway ingestion service (MQTT broker + HTTP fallback).
+- Validate data on ingress for sanity checks (range validation, schema checks).
+
+**Stream Processing**
+- Stream processor for:
+  - Aggregations (min/max/avg AQI)
+  - Alert rule evaluation
+  - Anomaly detection
+- Publish alert events into an alerts pipeline.
+
+**Storage**
+- Time‑series DB for sensor readings (e.g., TimescaleDB, Influx, ClickHouse).
+- Relational DB for metadata (devices, sensors, rules, alerts, api keys).
+- Object storage for reports (PDFs).
+
+**Alert & Rules Engine**
+- Rule evaluator consumes streams + thresholds.
+- Supports actions: notification, warning, alert log.
+- Store alerts and transitions (active → resolved/dismissed).
+
+**Device Health Monitoring**
+- Heartbeat tracking service.
+- Status derived from last heartbeat + signal/battery thresholds.
+- Expose aggregated health stats to frontend.
+
+**Bulk Sync**
+- Separate batch ingestion endpoint for offline data uploads.
+- Packet validation pipeline.
+- Batch logs stored with metrics (received/rejected/duration).
+
+**Public API Gateway**
+- API key authentication.
+- Rate limit enforcement.
+- Separate public endpoints (AQI, sensors, historical data).
+
+**Reporting**
+- Report generation workers (async jobs).
+- Queries from time‑series DB + alert summaries.
+- Store results and provide download links.
+
+**Observability & Ops**
+- Service health endpoint for system status page.
+- Metrics exporter for CPU/memory/uptime.
+- Audit logs for rule changes and API key events.
+
+---
+
+If you want, I can also produce a machine‑readable spec for the API contract (OpenAPI), or map each UI component to a precise DTO schema.
