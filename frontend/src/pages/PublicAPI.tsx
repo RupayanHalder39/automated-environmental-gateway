@@ -4,38 +4,9 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Key, Copy, Trash2, Plus, BarChart3, Code } from "lucide-react";
-import { fetchApiKeys } from "../services/apiKeyService";
+import { Key, Copy, Trash2, Plus, BarChart3 } from "lucide-react";
+import { createApiKey, disableApiKey, fetchApiKeys } from "../services/apiKeyService";
 import { EmptyState } from "../components/EmptyState";
-
-const mockApiKeys = [
-  {
-    id: "1",
-    name: "Production API Key",
-    key: "aeg_prod_k8s9d7f6a5s4d3f2g1h",
-    created: "2026-02-15",
-    lastUsed: "2 hours ago",
-    requests: 15420,
-  },
-  {
-    id: "2",
-    name: "Development API Key",
-    key: "aeg_dev_j7h6g5f4d3s2a1z9x8c",
-    created: "2026-03-01",
-    lastUsed: "5 minutes ago",
-    requests: 8734,
-  },
-];
-
-const usageData = [
-  { date: "Mar 7", requests: 420 },
-  { date: "Mar 8", requests: 380 },
-  { date: "Mar 9", requests: 520 },
-  { date: "Mar 10", requests: 460 },
-  { date: "Mar 11", requests: 590 },
-  { date: "Mar 12", requests: 510 },
-  { date: "Mar 13", requests: 640 },
-];
 
 export function PublicAPI() {
   const [rateLimitPerMinute, setRateLimitPerMinute] = useState("100");
@@ -43,6 +14,8 @@ export function PublicAPI() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [newKeyName, setNewKeyName] = useState("New API Key");
 
   // Connect to backend: load API keys for Public API management.
   useEffect(() => {
@@ -56,6 +29,34 @@ export function PublicAPI() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  const totalRequests = apiKeys.reduce((sum, key) => sum + (key.requests || 0), 0);
+  const requestsPerHour = apiKeys.length ? Math.round(totalRequests / 24) : 0;
+  const usageData: { date: string; requests: number }[] = [];
+
+  const handleCreateKey = async () => {
+    setCreating(true);
+    setApiError(null);
+    try {
+      const res = await createApiKey(newKeyName || "New API Key");
+      const created = res.data as any;
+      if (created) setApiKeys((prev) => [created, ...prev]);
+    } catch (err: any) {
+      setApiError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDisableKey = async (id: string) => {
+    setApiError(null);
+    try {
+      await disableApiKey(id);
+      setApiKeys((prev) => prev.filter((key) => key.id !== id));
+    } catch (err: any) {
+      setApiError(err.message);
+    }
   };
 
   return (
@@ -75,10 +76,22 @@ export function PublicAPI() {
           <h1 className="text-3xl font-bold text-zinc-100">Public API Management</h1>
           <p className="text-zinc-400 mt-1">Manage API access for environmental data</p>
         </div>
-        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+        <div className="flex items-center gap-3">
+          <Input
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            placeholder="API key name"
+            className="bg-zinc-800 border-zinc-700 text-zinc-100 w-56"
+          />
+          <Button
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={handleCreateKey}
+            disabled={creating}
+          >
           <Plus className="w-4 h-4" />
           Generate New Key
-        </Button>
+          </Button>
+        </div>
       </div>
 
       {/* API Stats */}
@@ -97,7 +110,9 @@ export function PublicAPI() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-emerald-400/80 uppercase tracking-wide">Total Requests</p>
-              <p className="text-2xl font-bold text-emerald-400 mt-1">24.1K</p>
+              <p className="text-2xl font-bold text-emerald-400 mt-1">
+                {totalRequests.toLocaleString()}
+              </p>
             </div>
             <BarChart3 className="w-8 h-8 text-emerald-500/50" />
           </div>
@@ -107,7 +122,7 @@ export function PublicAPI() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-blue-400/80 uppercase tracking-wide">Requests/Hour</p>
-              <p className="text-2xl font-bold text-blue-400 mt-1">640</p>
+              <p className="text-2xl font-bold text-blue-400 mt-1">{requestsPerHour}</p>
             </div>
           </div>
         </Card>
@@ -116,7 +131,7 @@ export function PublicAPI() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-500 uppercase tracking-wide">Avg Response</p>
-              <p className="text-2xl font-bold text-zinc-100 mt-1">42ms</p>
+              <p className="text-2xl font-bold text-zinc-100 mt-1">—</p>
             </div>
           </div>
         </Card>
@@ -182,12 +197,12 @@ export function PublicAPI() {
                   <h3 className="text-lg font-semibold text-zinc-100 mb-2">{apiKey.name}</h3>
                   <div className="flex items-center gap-2 mb-3">
                     <code className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-300 font-mono">
-                      {apiKey.key}
+                      {apiKey.key || "—"}
                     </code>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(apiKey.key)}
+                      onClick={() => copyToClipboard(apiKey.key || "")}
                       className="text-zinc-400 hover:text-zinc-100"
                     >
                       <Copy className="w-4 h-4" />
@@ -196,12 +211,13 @@ export function PublicAPI() {
                   <div className="flex items-center gap-6 text-sm text-zinc-400">
                     <span>Created: {apiKey.created}</span>
                     <span>Last used: {apiKey.lastUsed}</span>
-                    <span>Requests: {apiKey.requests.toLocaleString()}</span>
+                    <span>Requests: {Number(apiKey.requests || 0).toLocaleString()}</span>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => handleDisableKey(apiKey.id)}
                   className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -250,28 +266,32 @@ export function PublicAPI() {
           <h2 className="text-lg font-semibold text-zinc-100">API Usage Statistics</h2>
         </div>
         <div className="p-6">
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={usageData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="date" stroke="#71717a" />
-              <YAxis stroke="#71717a" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#18181b",
-                  border: "1px solid #27272a",
-                  borderRadius: "8px",
-                  color: "#fafafa",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="requests"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ fill: "#10b981", r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {usageData.length === 0 ? (
+            <EmptyState title="No usage data yet" description="API usage will appear once requests are made." />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={usageData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <XAxis dataKey="date" stroke="#71717a" />
+                <YAxis stroke="#71717a" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#18181b",
+                    border: "1px solid #27272a",
+                    borderRadius: "8px",
+                    color: "#fafafa",
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="requests"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ fill: "#10b981", r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </Card>
     </div>

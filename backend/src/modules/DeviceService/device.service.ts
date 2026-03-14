@@ -2,8 +2,19 @@
 
 import { db } from "../../utils/db";
 import type { DeviceDTO, DeviceHealthSummaryDTO } from "../../types/device";
+import { DEV_MODE } from "../../config";
+import {
+  getDevDeviceById,
+  getDevDeviceHeartbeats,
+  getDevDeviceHealthSummary,
+  listDevDevices,
+  updateDevDeviceStatus,
+} from "../../services/devData";
 
 export async function listDevices(): Promise<DeviceDTO[]> {
+  // DEV_MODE: return generated device list without DB access.
+  if (DEV_MODE) return listDevDevices();
+
   // Returns device list with latest heartbeat.
   // Tables: devices, device_heartbeats.
   const result = await db.query(
@@ -39,6 +50,9 @@ export async function listDevices(): Promise<DeviceDTO[]> {
 }
 
 export async function getDeviceById(id: string): Promise<DeviceDTO | null> {
+  // DEV_MODE: return generated device by id.
+  if (DEV_MODE) return getDevDeviceById(id);
+
   // Returns a single device with latest heartbeat.
   const result = await db.query(
     `SELECT d.device_code, d.location_name, d.status, d.last_seen_at,
@@ -74,6 +88,9 @@ export async function getDeviceById(id: string): Promise<DeviceDTO | null> {
 }
 
 export async function getDeviceHeartbeats(id: string, range?: string) {
+  // DEV_MODE: return generated heartbeat history.
+  if (DEV_MODE) return getDevDeviceHeartbeats(id);
+
   // Returns recent heartbeat history for a device.
   const window = range || "24h";
   const interval = window.endsWith("h") || window.endsWith("m") ? window : "24h";
@@ -91,6 +108,9 @@ export async function getDeviceHeartbeats(id: string, range?: string) {
 }
 
 export async function getDeviceHealthSummary(): Promise<DeviceHealthSummaryDTO> {
+  // DEV_MODE: return generated device health summary.
+  if (DEV_MODE) return getDevDeviceHealthSummary();
+
   // Returns counts for Device Health summary cards.
   const result = await db.query(
     `SELECT
@@ -114,6 +134,9 @@ export async function getDeviceHealthSummary(): Promise<DeviceHealthSummaryDTO> 
 }
 
 export async function updateDeviceStatus(id: string, payload: { status?: string }) {
+  // DEV_MODE: update in-memory device status only.
+  if (DEV_MODE) return updateDevDeviceStatus(id, payload?.status);
+
   // Updates device operational status (ACTIVE/MAINTENANCE/DECOMMISSIONED).
   const status = payload?.status || "ACTIVE";
   const result = await db.query(

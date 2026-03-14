@@ -1,6 +1,12 @@
 // HistoryService: historical and aggregate data access
 
 import { db } from "../../utils/db";
+import { DEV_MODE } from "../../config";
+import {
+  getDevDeviceAggregate,
+  getDevHistoryAggregate,
+  getDevHistoryReadings,
+} from "../../services/devData";
 
 function metricColumn(metric?: string) {
   switch (metric) {
@@ -24,6 +30,14 @@ function intervalBucket(interval?: string) {
 }
 
 export async function getHistoryReadings(query: any) {
+  // DEV_MODE: return generated historical readings without DB access.
+  if (DEV_MODE) {
+    const { sensor_id, page = "1", pageSize = "50" } = query;
+    const limit = Math.min(Number(pageSize) || 50, 500);
+    const pageNum = Number(page) || 1;
+    return getDevHistoryReadings(String(sensor_id), pageNum, limit);
+  }
+
   // Returns raw readings filtered by time range and sensor.
   // Table: sensor_readings.
   const { sensor_id, from, to, page = "1", pageSize = "50" } = query;
@@ -58,6 +72,9 @@ export async function getHistoryReadings(query: any) {
 }
 
 export async function getHistoryAggregate(query: any) {
+  // DEV_MODE: return generated aggregates without DB access.
+  if (DEV_MODE) return getDevHistoryAggregate(query?.metric);
+
   // Returns aggregated chart data for Historical Data UI.
   // Tables: sensor_readings, sensors, devices.
   const { metric, from, to, interval, location } = query;
@@ -91,6 +108,9 @@ export async function getHistoryAggregate(query: any) {
 }
 
 export async function getDeviceAggregate(id: string, query: any) {
+  // DEV_MODE: return generated device aggregate series.
+  if (DEV_MODE) return getDevDeviceAggregate(id);
+
   // Returns device-specific aggregate series.
   const { from, to, interval } = query;
   const bucket = intervalBucket(interval);
@@ -111,6 +131,9 @@ export async function getDeviceAggregate(id: string, query: any) {
 }
 
 export async function exportHistory(query: any) {
+  // DEV_MODE: reuse generated readings export.
+  if (DEV_MODE) return getHistoryReadings(query);
+
   // For now, reuse raw readings export in JSON form.
   return getHistoryReadings(query);
 }

@@ -2,8 +2,19 @@
 
 import { db } from "../../utils/db";
 import type { AnomalyDTO, AnomalySummaryDTO } from "../../types/anomaly";
+import { DEV_MODE } from "../../config";
+import {
+  createDevAnomaly,
+  getDevAnomaliesBySensor,
+  getDevAnomalyById,
+  getDevAnomalySummary,
+  listDevAnomalies,
+} from "../../services/devData";
 
 export async function listAnomalies(query: any): Promise<AnomalyDTO[]> {
+  // DEV_MODE: return generated anomalies without DB access.
+  if (DEV_MODE) return listDevAnomalies();
+
   const result = await db.query(
     `SELECT al.id, s.sensor_code, al.detected_at, al.severity, al.details_json
      FROM anomaly_logs al
@@ -24,6 +35,9 @@ export async function listAnomalies(query: any): Promise<AnomalyDTO[]> {
 }
 
 export async function getAnomalyById(id: string): Promise<AnomalyDTO | null> {
+  // DEV_MODE: return generated anomaly by id.
+  if (DEV_MODE) return getDevAnomalyById(id);
+
   const result = await db.query(
     `SELECT al.id, s.sensor_code, al.detected_at, al.severity, al.details_json
      FROM anomaly_logs al
@@ -46,6 +60,9 @@ export async function getAnomalyById(id: string): Promise<AnomalyDTO | null> {
 }
 
 export async function getAnomalySummary(): Promise<AnomalySummaryDTO> {
+  // DEV_MODE: return generated anomaly summary.
+  if (DEV_MODE) return getDevAnomalySummary();
+
   const result = await db.query(
     `SELECT
        COUNT(*) AS total,
@@ -62,6 +79,9 @@ export async function getAnomalySummary(): Promise<AnomalySummaryDTO> {
 }
 
 export async function getAnomaliesBySensor(sensorId: string): Promise<AnomalyDTO[]> {
+  // DEV_MODE: return generated anomalies by sensor.
+  if (DEV_MODE) return getDevAnomaliesBySensor(sensorId);
+
   const result = await db.query(
     `SELECT al.id, s.sensor_code, al.detected_at, al.severity, al.details_json
      FROM anomaly_logs al
@@ -88,6 +108,9 @@ export async function updateAnomalySettings(payload: any) {
 }
 
 export async function createAnomaly(payload: any): Promise<AnomalyDTO> {
+  // DEV_MODE: create in-memory anomaly only.
+  if (DEV_MODE) return createDevAnomaly(payload);
+
   // Validate anomaly payload; in a real system this would be stricter.
   if (!payload.sensorId || !payload.reason) {
     throw new Error("sensorId and reason are required");

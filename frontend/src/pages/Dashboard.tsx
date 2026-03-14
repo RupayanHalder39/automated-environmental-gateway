@@ -20,68 +20,6 @@ interface Sensor {
   status: "online" | "offline";
 }
 
-const mockSensors: Sensor[] = [
-  {
-    id: "SEN-001",
-    location: "Salt Lake",
-    lat: 22.5726,
-    lng: 88.4197,
-    aqi: 45,
-    temperature: 28,
-    humidity: 65,
-    waterLevel: 2.3,
-    lastUpdate: "2 min ago",
-    status: "online",
-  },
-  {
-    id: "SEN-002",
-    location: "New Town",
-    lat: 22.5897,
-    lng: 88.4753,
-    aqi: 78,
-    temperature: 29,
-    humidity: 68,
-    waterLevel: 1.8,
-    lastUpdate: "1 min ago",
-    status: "online",
-  },
-  {
-    id: "SEN-003",
-    location: "Sector V",
-    lat: 22.5726,
-    lng: 88.4324,
-    aqi: 120,
-    temperature: 31,
-    humidity: 72,
-    waterLevel: 3.1,
-    lastUpdate: "3 min ago",
-    status: "online",
-  },
-  {
-    id: "SEN-004",
-    location: "Rajarhat",
-    lat: 22.6208,
-    lng: 88.4504,
-    aqi: 95,
-    temperature: 27,
-    humidity: 70,
-    waterLevel: 2.5,
-    lastUpdate: "4 min ago",
-    status: "online",
-  },
-  {
-    id: "SEN-005",
-    location: "Park Street",
-    lat: 22.5543,
-    lng: 88.3519,
-    aqi: 165,
-    temperature: 32,
-    humidity: 75,
-    waterLevel: 1.9,
-    lastUpdate: "5 min ago",
-    status: "online",
-  },
-];
 
 function getAQIColor(aqi: number) {
   if (aqi <= 50) return { bg: "bg-emerald-500", text: "text-emerald-500", label: "Good" };
@@ -111,6 +49,10 @@ export function Dashboard() {
   };
 
   const sensors = apiSensors;
+  const avgAqi =
+    sensors.length > 0
+      ? Math.round(sensors.reduce((sum, s) => sum + s.aqi, 0) / sensors.length)
+      : 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -171,9 +113,7 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-500 uppercase tracking-wide">Avg AQI</p>
-              <p className="text-2xl font-bold text-yellow-400 mt-1">
-                {Math.round(sensors.reduce((sum, s) => sum + s.aqi, 0) / sensors.length)}
-              </p>
+              <p className="text-2xl font-bold text-yellow-400 mt-1">{avgAqi}</p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
               <Thermometer className="w-6 h-6 text-yellow-400" />

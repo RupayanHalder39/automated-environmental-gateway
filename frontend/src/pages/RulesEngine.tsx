@@ -12,8 +12,8 @@ import {
 } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Plus, Trash2, Edit, AlertTriangle, Bell, FileText } from "lucide-react";
-import { fetchRules } from "../services/ruleService";
+import { Plus, Trash2, Edit, AlertTriangle, Bell } from "lucide-react";
+import { createRule, deleteRule, fetchRules, updateRule } from "../services/ruleService";
 import { EmptyState } from "../components/EmptyState";
 
 interface Rule {
@@ -27,53 +27,6 @@ interface Rule {
   status: "active" | "disabled";
   lastTriggered: string;
 }
-
-const mockRules: Rule[] = [
-  {
-    id: "RULE-001",
-    name: "High Water Level Alert",
-    metric: "Water Level",
-    operator: ">",
-    threshold: 5,
-    location: "Sector V",
-    action: "Send Notification",
-    status: "active",
-    lastTriggered: "2 hours ago",
-  },
-  {
-    id: "RULE-002",
-    name: "Dangerous AQI Warning",
-    metric: "AQI",
-    operator: ">",
-    threshold: 150,
-    location: "All Locations",
-    action: "Trigger Warning",
-    status: "active",
-    lastTriggered: "Never",
-  },
-  {
-    id: "RULE-003",
-    name: "High Temperature Alert",
-    metric: "Temperature",
-    operator: ">",
-    threshold: 35,
-    location: "Park Street",
-    action: "Create Alert Log",
-    status: "active",
-    lastTriggered: "1 day ago",
-  },
-  {
-    id: "RULE-004",
-    name: "Low Humidity Warning",
-    metric: "Humidity",
-    operator: "<",
-    threshold: 30,
-    location: "New Town",
-    action: "Send Notification",
-    status: "disabled",
-    lastTriggered: "Never",
-  },
-];
 
 export function RulesEngine() {
   const [rulesList, setRulesList] = useState<Rule[]>([]);
@@ -89,6 +42,8 @@ export function RulesEngine() {
 
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const triggeredToday = 0;
 
   // Connect to backend: load active rules for the Rules Engine UI.
   useEffect(() => {
@@ -100,43 +55,66 @@ export function RulesEngine() {
       .finally(() => setLoading(false));
   }, []);
 
-  const toggleRuleStatus = (id: string) => {
-    setRulesList((prev) =>
-      prev.map((rule) =>
-        rule.id === id
-          ? { ...rule, status: rule.status === "active" ? "disabled" : "active" }
-          : rule
-      )
-    );
+  const toggleRuleStatus = async (id: string, currentStatus: Rule["status"]) => {
+    const nextStatus = currentStatus === "active" ? "disabled" : "active";
+    setActionBusyId(id);
+    setApiError(null);
+    try {
+      const res = await updateRule(id, { status: nextStatus });
+      const updated = res.data as Rule | null | undefined;
+      setRulesList((prev) =>
+        prev.map((rule) =>
+          rule.id === id ? (updated || { ...rule, status: nextStatus }) : rule
+        )
+      );
+    } catch (err: any) {
+      setApiError(err.message);
+    } finally {
+      setActionBusyId(null);
+    }
   };
 
-  const deleteRule = (id: string) => {
-    setRulesList((prev) => prev.filter((rule) => rule.id !== id));
+  const handleDeleteRule = async (id: string) => {
+    setActionBusyId(id);
+    setApiError(null);
+    try {
+      await deleteRule(id);
+      setRulesList((prev) => prev.filter((rule) => rule.id !== id));
+    } catch (err: any) {
+      setApiError(err.message);
+    } finally {
+      setActionBusyId(null);
+    }
   };
 
-  const handleCreateRule = () => {
-    // In a real app, this would send to backend
-    const rule: Rule = {
-      id: `RULE-${String(rulesList.length + 1).padStart(3, "0")}`,
-      name: newRule.name,
-      metric: newRule.metric,
-      operator: newRule.operator,
-      threshold: Number(newRule.threshold),
-      location: newRule.location,
-      action: newRule.action,
-      status: "active",
-      lastTriggered: "Never",
-    };
-    setRulesList([...rulesList, rule]);
-    setIsCreateDialogOpen(false);
-    setNewRule({
-      name: "",
-      metric: "aqi",
-      operator: ">",
-      threshold: "",
-      location: "all",
-      action: "notification",
-    });
+  const handleCreateRule = async () => {
+    setApiError(null);
+    try {
+      const payload: Partial<Rule> = {
+        name: newRule.name || "New Rule",
+        metric: newRule.metric,
+        operator: newRule.operator,
+        threshold: Number(newRule.threshold || 0),
+        location: newRule.location,
+        action: newRule.action,
+        status: "active",
+        lastTriggered: "Never",
+      };
+      const res = await createRule(payload);
+      const created = (res.data as Rule | undefined) || (payload as Rule);
+      setRulesList((prev) => [created, ...prev]);
+      setIsCreateDialogOpen(false);
+      setNewRule({
+        name: "",
+        metric: "aqi",
+        operator: ">",
+        threshold: "",
+        location: "all",
+        action: "notification",
+      });
+    } catch (err: any) {
+      setApiError(err.message);
+    }
   };
 
   return (
@@ -204,7 +182,7 @@ export function RulesEngine() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-orange-400/80 uppercase tracking-wide">Triggered Today</p>
-              <p className="text-2xl font-bold text-orange-400 mt-1">8</p>
+              <p className="text-2xl font-bold text-orange-400 mt-1">{triggeredToday}</p>
             </div>
             <Bell className="w-8 h-8 text-orange-500/50" />
           </div>
@@ -266,7 +244,8 @@ export function RulesEngine() {
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={rule.status === "active"}
-                    onCheckedChange={() => toggleRuleStatus(rule.id)}
+                    disabled={actionBusyId === rule.id}
+                    onCheckedChange={() => toggleRuleStatus(rule.id, rule.status)}
                   />
                   <Button
                     variant="ghost"
@@ -278,7 +257,7 @@ export function RulesEngine() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteRule(rule.id)}
+                    onClick={() => handleDeleteRule(rule.id)}
                     className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                   >
                     <Trash2 className="w-4 h-4" />

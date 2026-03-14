@@ -24,62 +24,6 @@ interface AnomalyLog {
   severity: "high" | "medium" | "low";
 }
 
-const mockAnomalyLogs: AnomalyLog[] = [
-  {
-    id: "ANO-001",
-    sensorId: "SEN-003",
-    invalidValue: "Temperature: 500°C",
-    expectedRange: "0°C - 50°C",
-    timestamp: "2026-03-13 14:23:45",
-    reason: "Temperature spike beyond physical limits",
-    severity: "high",
-  },
-  {
-    id: "ANO-002",
-    sensorId: "SEN-005",
-    invalidValue: "Humidity: -15%",
-    expectedRange: "0% - 100%",
-    timestamp: "2026-03-13 13:15:22",
-    reason: "Negative humidity value detected",
-    severity: "high",
-  },
-  {
-    id: "ANO-003",
-    sensorId: "SEN-002",
-    invalidValue: "Water Level: 25m",
-    expectedRange: "0m - 10m",
-    timestamp: "2026-03-13 12:45:10",
-    reason: "Water level beyond physical sensor range",
-    severity: "medium",
-  },
-  {
-    id: "ANO-004",
-    sensorId: "SEN-001",
-    invalidValue: "AQI: 850",
-    expectedRange: "0 - 500",
-    timestamp: "2026-03-13 11:30:05",
-    reason: "AQI value exceeds sensor maximum",
-    severity: "medium",
-  },
-  {
-    id: "ANO-005",
-    sensorId: "SEN-004",
-    invalidValue: "Temperature: -273°C",
-    expectedRange: "0°C - 50°C",
-    timestamp: "2026-03-13 10:22:33",
-    reason: "Temperature below absolute zero",
-    severity: "high",
-  },
-  {
-    id: "ANO-006",
-    sensorId: "SEN-003",
-    invalidValue: "Humidity: 150%",
-    expectedRange: "0% - 100%",
-    timestamp: "2026-03-13 09:15:18",
-    reason: "Humidity percentage exceeds maximum",
-    severity: "low",
-  },
-];
 
 function getSeverityColor(severity: string) {
   switch (severity) {

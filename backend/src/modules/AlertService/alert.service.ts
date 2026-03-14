@@ -2,6 +2,15 @@
 
 import { db } from "../../utils/db";
 import type { AlertDTO, AlertSummaryDTO } from "../../types/alert";
+import { DEV_MODE } from "../../config";
+import {
+  acknowledgeDevAlert,
+  getDevAlertById,
+  getDevAlertSummary,
+  listDevAlerts,
+  resolveDevAlert,
+  triggerDevAlert,
+} from "../../services/devData";
 
 function severityToType(severity: string): "critical" | "warning" | "info" {
   if (severity === "CRITICAL") return "critical";
@@ -10,6 +19,9 @@ function severityToType(severity: string): "critical" | "warning" | "info" {
 }
 
 export async function listAlerts(query: any): Promise<AlertDTO[]> {
+  // DEV_MODE: return generated alerts without DB access.
+  if (DEV_MODE) return listDevAlerts(query?.status);
+
   const status = query.status === "active" ? "OPEN" : query.status === "resolved" ? "RESOLVED" : undefined;
   const result = await db.query(
     `SELECT a.id, a.severity, a.message, a.triggered_at, a.status,
@@ -34,6 +46,9 @@ export async function listAlerts(query: any): Promise<AlertDTO[]> {
 }
 
 export async function getAlertById(id: string): Promise<AlertDTO | null> {
+  // DEV_MODE: return generated alert by id.
+  if (DEV_MODE) return getDevAlertById(id);
+
   const result = await db.query(
     `SELECT a.id, a.severity, a.message, a.triggered_at, a.status,
             d.location_name,
@@ -58,6 +73,9 @@ export async function getAlertById(id: string): Promise<AlertDTO | null> {
 }
 
 export async function acknowledgeAlert(id: string) {
+  // DEV_MODE: update in-memory alert status.
+  if (DEV_MODE) return acknowledgeDevAlert(id);
+
   const result = await db.query(
     `UPDATE alerts SET status = 'ACKNOWLEDGED' WHERE id = $1 RETURNING *`,
     [id]
@@ -66,6 +84,9 @@ export async function acknowledgeAlert(id: string) {
 }
 
 export async function resolveAlert(id: string) {
+  // DEV_MODE: update in-memory alert status.
+  if (DEV_MODE) return resolveDevAlert(id);
+
   const result = await db.query(
     `UPDATE alerts SET status = 'RESOLVED', resolved_at = NOW() WHERE id = $1 RETURNING *`,
     [id]
@@ -74,6 +95,9 @@ export async function resolveAlert(id: string) {
 }
 
 export async function getAlertSummary(): Promise<AlertSummaryDTO> {
+  // DEV_MODE: return generated alert summary.
+  if (DEV_MODE) return getDevAlertSummary();
+
   const result = await db.query(
     `SELECT
        SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) AS active,
@@ -97,6 +121,9 @@ export async function triggerAlertsForReading(payload: {
   metric: string;
   value: number;
 }) {
+  // DEV_MODE: create in-memory alert only.
+  if (DEV_MODE) return [triggerDevAlert(payload)];
+
   // Fetch rules for metric
   const metric = payload.metric.toUpperCase();
   const sensorType = metric === "WATERLEVEL" || metric === "WATER_LEVEL" ? "WATER_LEVEL" : metric;

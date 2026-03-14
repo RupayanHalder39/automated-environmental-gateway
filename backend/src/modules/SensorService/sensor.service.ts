@@ -3,6 +3,15 @@
 
 import { db } from "../../utils/db";
 import type { SensorDTO, SensorSummaryDTO } from "../../types/sensor";
+import { DEV_MODE } from "../../config";
+import {
+  getDevLatestByType,
+  getDevSensorById,
+  getDevSensorHealth,
+  getDevSensorLatest,
+  getDevSensorSummary,
+  listDevSensors,
+} from "../../services/devData";
 
 type SensorQueryRow = {
   sensor_code: string;
@@ -24,6 +33,9 @@ function cmToMeters(value: number | null) {
 }
 
 export async function listSensors(): Promise<SensorDTO[]> {
+  // DEV_MODE: return generated sensor list without DB access.
+  if (DEV_MODE) return listDevSensors();
+
   // Returns SensorDTO[] with latest readings for each sensor.
   // Tables: sensors, devices, sensor_readings (latest per sensor).
   const result = await db.query(
@@ -60,6 +72,9 @@ export async function listSensors(): Promise<SensorDTO[]> {
 }
 
 export async function getSensorById(id: string): Promise<SensorDTO | null> {
+  // DEV_MODE: return generated sensor by id.
+  if (DEV_MODE) return getDevSensorById(id);
+
   // Returns SensorDTO for a single sensor.
   // Tables: sensors, devices, sensor_readings (latest per sensor).
   const result = await db.query(
@@ -99,6 +114,9 @@ export async function getSensorById(id: string): Promise<SensorDTO | null> {
 }
 
 export async function getSensorLatest(id: string) {
+  // DEV_MODE: return latest generated reading.
+  if (DEV_MODE) return getDevSensorLatest(id);
+
   // Returns latest metric values for a sensor.
   // Table: sensor_readings.
   const result = await db.query(
@@ -113,6 +131,9 @@ export async function getSensorLatest(id: string) {
 }
 
 export async function getLatestByType(type?: string) {
+  // DEV_MODE: return latest generated value by type.
+  if (DEV_MODE) return getDevLatestByType(type);
+
   // Returns latest value for a given metric type across all sensors.
   // Table: sensor_readings.
   const metric = type || "aqi";
@@ -136,6 +157,9 @@ export async function getLatestByType(type?: string) {
 }
 
 export async function getSensorSummary(range?: string): Promise<SensorSummaryDTO> {
+  // DEV_MODE: return generated summary without DB access.
+  if (DEV_MODE) return getDevSensorSummary();
+
   // Returns summary stats for dashboard cards.
   // Table: sensor_readings, sensors.
   const window = range || "15m";
@@ -171,6 +195,9 @@ export async function getSensorSummary(range?: string): Promise<SensorSummaryDTO
 }
 
 export async function getSensorHealth() {
+  // DEV_MODE: return generated health counts.
+  if (DEV_MODE) return getDevSensorHealth();
+
   // Returns health counts for sensors.
   // Tables: sensors, devices.
   const result = await db.query(

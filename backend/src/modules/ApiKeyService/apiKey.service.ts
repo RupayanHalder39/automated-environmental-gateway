@@ -3,8 +3,21 @@
 import { db } from "../../utils/db";
 import { keyHasher, generateApiKey } from "../../utils/keyHasher";
 import type { ApiKeyDTO } from "../../types/apiKey";
+import { DEV_MODE } from "../../config";
+import {
+  createDevApiKey,
+  disableDevApiKey,
+  getDevPublicAqi,
+  getDevPublicHistorical,
+  getDevPublicSensors,
+  listDevApiKeys,
+  rotateDevApiKey,
+} from "../../services/devData";
 
 export async function listApiKeys(): Promise<ApiKeyDTO[]> {
+  // DEV_MODE: return generated API keys without DB access.
+  if (DEV_MODE) return listDevApiKeys();
+
   const result = await db.query(
     `SELECT id, name, created_at, last_used_at
      FROM api_keys
@@ -22,6 +35,9 @@ export async function listApiKeys(): Promise<ApiKeyDTO[]> {
 }
 
 export async function createApiKey(payload: { name?: string; scopes?: string[] }) {
+  // DEV_MODE: create in-memory key only.
+  if (DEV_MODE) return createDevApiKey(payload.name || "API Key");
+
   const rawKey = generateApiKey();
   const hash = keyHasher(rawKey);
   const result = await db.query(
@@ -42,6 +58,9 @@ export async function createApiKey(payload: { name?: string; scopes?: string[] }
 }
 
 export async function disableApiKey(id: string) {
+  // DEV_MODE: soft disable in-memory key.
+  if (DEV_MODE) return disableDevApiKey(id);
+
   const result = await db.query(
     `UPDATE api_keys SET is_active = false WHERE id = $1 RETURNING *`,
     [id]
@@ -50,6 +69,9 @@ export async function disableApiKey(id: string) {
 }
 
 export async function rotateApiKey(id: string) {
+  // DEV_MODE: rotate in-memory key only.
+  if (DEV_MODE) return rotateDevApiKey(id);
+
   const rawKey = generateApiKey();
   const hash = keyHasher(rawKey);
   const result = await db.query(
@@ -69,6 +91,9 @@ export async function rotateApiKey(id: string) {
 }
 
 export async function getPublicAqi(query: any) {
+  // DEV_MODE: return generated public AQI.
+  if (DEV_MODE) return getDevPublicAqi();
+
   // Return latest AQI for a location.
   const { location } = query;
   const result = await db.query(
@@ -84,6 +109,9 @@ export async function getPublicAqi(query: any) {
 }
 
 export async function getPublicSensors() {
+  // DEV_MODE: return generated public sensors list.
+  if (DEV_MODE) return getDevPublicSensors();
+
   const result = await db.query(
     `SELECT s.sensor_code, d.location_name, d.latitude, d.longitude
      FROM sensors s
@@ -94,6 +122,9 @@ export async function getPublicSensors() {
 }
 
 export async function getPublicHistorical(query: any) {
+  // DEV_MODE: return generated history series.
+  if (DEV_MODE) return getDevPublicHistorical(query.metric || "temperature");
+
   const { metric = "temperature", days = 7 } = query;
   const column = metric === "humidity" ? "humidity_pct" : metric === "waterLevel" ? "water_level_cm" : metric === "temperature" ? "temperature_c" : "aqi";
   const result = await db.query(

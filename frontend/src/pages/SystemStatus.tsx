@@ -2,43 +2,9 @@ import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Server, Database, Zap, Activity, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
-import { fetchSystemStatus } from "../services/systemService";
+import { fetchIngestionStatus, fetchSystemMetrics, fetchSystemStatus } from "../services/systemService";
 import { EmptyState } from "../components/EmptyState";
-
-const mockServices = [
-  {
-    name: "Sensor Gateway Service",
-    status: "running",
-    uptime: "15 days 8 hours",
-    cpu: "12%",
-    memory: "340 MB",
-    icon: Activity,
-  },
-  {
-    name: "Data Processing Service",
-    status: "running",
-    uptime: "15 days 8 hours",
-    cpu: "28%",
-    memory: "580 MB",
-    icon: Database,
-  },
-  {
-    name: "Alert Engine",
-    status: "running",
-    uptime: "15 days 8 hours",
-    cpu: "8%",
-    memory: "215 MB",
-    icon: Zap,
-  },
-  {
-    name: "API Gateway",
-    status: "running",
-    uptime: "15 days 8 hours",
-    cpu: "15%",
-    memory: "420 MB",
-    icon: Globe,
-  },
-];
+import type { SystemStatusDTO } from "../types/system";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -54,19 +20,45 @@ function getStatusColor(status: string) {
 }
 
 export function SystemStatus() {
-  const [services, setServices] = useState<any[]>([]);
+  const [systemStatus, setSystemStatus] = useState<SystemStatusDTO | null>(null);
+  const [systemMetrics, setSystemMetrics] = useState<any | null>(null);
+  const [ingestionStatus, setIngestionStatus] = useState<any | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Connect to backend: load system status for System Status page.
   useEffect(() => {
-    fetchSystemStatus()
-      .then((res) => {
-        if (res.data?.services) setServices(res.data.services as any);
+    Promise.all([fetchSystemStatus(), fetchSystemMetrics(), fetchIngestionStatus()])
+      .then(([statusRes, metricsRes, ingestionRes]) => {
+        if (statusRes.data) setSystemStatus(statusRes.data as SystemStatusDTO);
+        if (metricsRes.data) setSystemMetrics(metricsRes.data as any);
+        if (ingestionRes.data) setIngestionStatus(ingestionRes.data as any);
       })
       .catch((err) => setApiError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const services = systemStatus?.services || [];
+  const overallStatus = systemStatus?.overallStatus || "Unknown";
+  const overallUptime = systemStatus?.uptime || "—";
+
+  const toPercent = (value?: string) => {
+    if (!value) return null;
+    const num = Number(String(value).replace("%", ""));
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const cpuPercent = toPercent(systemMetrics?.cpu);
+  const memoryPercent = toPercent(systemMetrics?.memory);
+  const diskPercent = toPercent(systemMetrics?.disk);
+
+  const getServiceIcon = (name: string) => {
+    const normalized = name.toLowerCase();
+    if (normalized.includes("alert")) return Zap;
+    if (normalized.includes("db") || normalized.includes("data")) return Database;
+    if (normalized.includes("api")) return Globe;
+    return Activity;
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -93,12 +85,12 @@ export function SystemStatus() {
               <div className="w-8 h-8 bg-emerald-400 rounded-full animate-pulse"></div>
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-emerald-400">All Systems Operational</h2>
-              <p className="text-emerald-400/80 mt-1">All services running normally</p>
+              <h2 className="text-2xl font-bold text-emerald-400">{overallStatus}</h2>
+              <p className="text-emerald-400/80 mt-1">Uptime: {overallUptime}</p>
             </div>
           </div>
           <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-lg px-4 py-2">
-            100% Uptime
+            {overallUptime}
           </Badge>
         </div>
       </Card>
@@ -107,7 +99,7 @@ export function SystemStatus() {
       <div className="grid grid-cols-2 gap-6">
         {services.map((service) => {
           const statusColor = getStatusColor(service.status);
-          const Icon = service.icon;
+          const Icon = getServiceIcon(service.name);
 
           return (
             <Card key={service.name} className="bg-zinc-900 border-zinc-800">
@@ -162,30 +154,30 @@ export function SystemStatus() {
           <div className="flex items-center gap-4 p-4 rounded-lg bg-zinc-800 border border-zinc-700">
             <Server className="w-8 h-8 text-blue-400" />
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-zinc-100">Docker Container Deployment</h3>
+              <h3 className="text-sm font-semibold text-zinc-100">Deployment</h3>
               <p className="text-sm text-zinc-400 mt-1">
-                All services deployed using Docker containers for edge gateway compatibility
+                {systemStatus?.deployment || "Deployment details not reported."}
               </p>
             </div>
             <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Docker
+              {systemStatus?.deployment || "Unknown"}
             </Badge>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div className="p-4 rounded-lg bg-zinc-800 border border-zinc-700">
               <p className="text-xs text-zinc-400 mb-2">Environment</p>
-              <p className="text-lg font-bold text-zinc-100">Production</p>
+              <p className="text-lg font-bold text-zinc-100">{systemStatus?.environment || "—"}</p>
             </div>
 
             <div className="p-4 rounded-lg bg-zinc-800 border border-zinc-700">
               <p className="text-xs text-zinc-400 mb-2">Version</p>
-              <p className="text-lg font-bold text-zinc-100">v2.4.1</p>
+              <p className="text-lg font-bold text-zinc-100">{systemStatus?.version || "—"}</p>
             </div>
 
             <div className="p-4 rounded-lg bg-zinc-800 border border-zinc-700">
-              <p className="text-xs text-zinc-400 mb-2">Last Deploy</p>
-              <p className="text-lg font-bold text-zinc-100">15 days ago</p>
+              <p className="text-xs text-zinc-400 mb-2">Uptime</p>
+              <p className="text-lg font-bold text-zinc-100">{overallUptime}</p>
             </div>
           </div>
         </div>
@@ -201,30 +193,45 @@ export function SystemStatus() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-400">Total CPU Usage</span>
-                <span className="text-sm font-medium text-zinc-100">16%</span>
+                <span className="text-sm font-medium text-zinc-100">
+                  {systemMetrics?.cpu || "—"}
+                </span>
               </div>
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: "16%" }}></div>
+                <div
+                  className="h-full bg-emerald-500 rounded-full"
+                  style={{ width: `${cpuPercent ?? 0}%` }}
+                ></div>
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-400">Memory Usage</span>
-                <span className="text-sm font-medium text-zinc-100">1.5 GB / 8 GB</span>
+                <span className="text-sm font-medium text-zinc-100">
+                  {systemMetrics?.memory || "—"}
+                </span>
               </div>
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full" style={{ width: "19%" }}></div>
+                <div
+                  className="h-full bg-blue-500 rounded-full"
+                  style={{ width: `${memoryPercent ?? 0}%` }}
+                ></div>
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-zinc-400">Disk Usage</span>
-                <span className="text-sm font-medium text-zinc-100">24 GB / 100 GB</span>
+                <span className="text-sm font-medium text-zinc-100">
+                  {systemMetrics?.disk || "—"}
+                </span>
               </div>
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-purple-500 rounded-full" style={{ width: "24%" }}></div>
+                <div
+                  className="h-full bg-purple-500 rounded-full"
+                  style={{ width: `${diskPercent ?? 0}%` }}
+                ></div>
               </div>
             </div>
           </div>
@@ -232,20 +239,26 @@ export function SystemStatus() {
 
         <Card className="bg-zinc-900 border-zinc-800">
           <div className="p-6 border-b border-zinc-800">
-            <h2 className="text-lg font-semibold text-zinc-100">Network Stats</h2>
+            <h2 className="text-lg font-semibold text-zinc-100">Ingestion Status</h2>
           </div>
           <div className="p-6 space-y-3">
             <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800">
-              <span className="text-sm text-zinc-400">Inbound Traffic</span>
-              <span className="text-sm font-medium text-emerald-400">2.4 MB/s</span>
+              <span className="text-sm text-zinc-400">Last Ingest</span>
+              <span className="text-sm font-medium text-emerald-400">
+                {ingestionStatus?.lastIngest || "—"}
+              </span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800">
-              <span className="text-sm text-zinc-400">Outbound Traffic</span>
-              <span className="text-sm font-medium text-blue-400">1.8 MB/s</span>
+              <span className="text-sm text-zinc-400">Total Ingested</span>
+              <span className="text-sm font-medium text-blue-400">
+                {ingestionStatus?.totalIngested ?? "—"}
+              </span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800">
-              <span className="text-sm text-zinc-400">Active Connections</span>
-              <span className="text-sm font-medium text-zinc-100">142</span>
+              <span className="text-sm text-zinc-400">Status</span>
+              <span className="text-sm font-medium text-zinc-100">
+                {ingestionStatus?.status || "—"}
+              </span>
             </div>
           </div>
         </Card>

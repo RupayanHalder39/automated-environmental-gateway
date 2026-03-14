@@ -13,44 +13,8 @@ import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { FileText, Download, CalendarIcon, TrendingUp, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
-import { fetchReports } from "../services/reportService";
+import { createReport, fetchReports } from "../services/reportService";
 import { EmptyState } from "../components/EmptyState";
-
-const mockReports = [
-  {
-    id: "REP-001",
-    name: "Weekly City Health Report - March Week 1",
-    type: "Weekly Summary",
-    zone: "All Zones",
-    dateRange: "Mar 1 - Mar 7, 2026",
-    generated: "2026-03-08",
-    avgAqi: 92,
-    highestPollution: "Park Street",
-    waterAlerts: 3,
-  },
-  {
-    id: "REP-002",
-    name: "Sector V Monthly Analysis",
-    type: "Monthly Summary",
-    zone: "Sector V",
-    dateRange: "Feb 1 - Feb 28, 2026",
-    generated: "2026-03-01",
-    avgAqi: 115,
-    highestPollution: "Sector V Central",
-    waterAlerts: 8,
-  },
-  {
-    id: "REP-003",
-    name: "Salt Lake Environmental Report",
-    type: "Custom Range",
-    zone: "Salt Lake",
-    dateRange: "Feb 15 - Mar 13, 2026",
-    generated: "2026-03-13",
-    avgAqi: 78,
-    highestPollution: "Salt Lake Sector 3",
-    waterAlerts: 2,
-  },
-];
 
 export function Reports() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(new Date());
@@ -59,6 +23,7 @@ export function Reports() {
   const [apiReports, setApiReports] = useState<any[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
 
   // Connect to backend: load reports for Reports UI.
   useEffect(() => {
@@ -71,6 +36,46 @@ export function Reports() {
   }, []);
 
   const generatedReports = apiReports;
+  const now = new Date();
+  const thisMonthCount = generatedReports.filter((report) => {
+    const date = new Date(report.generated);
+    return !Number.isNaN(date.getTime()) &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+  }).length;
+  const scheduledCount = 0;
+  const totalDownloads = 0;
+  const zoneLabelMap: Record<string, string> = {
+    all: "All Zones",
+    saltlake: "Salt Lake",
+    newtown: "New Town",
+    sectorv: "Sector V",
+    rajarhat: "Rajarhat",
+    parkstreet: "Park Street",
+  };
+
+  const handleGenerateReport = async () => {
+    setCreating(true);
+    setApiError(null);
+    try {
+      const fromLabel = dateFrom ? format(dateFrom, "PP") : "N/A";
+      const toLabel = dateTo ? format(dateTo, "PP") : "N/A";
+      const zoneLabel = zoneLabelMap[selectedZone] || "All Zones";
+      const payload = {
+        name: `${zoneLabel} Report`,
+        type: "Custom Range",
+        zone: zoneLabel,
+        dateRange: `${fromLabel} - ${toLabel}`,
+      };
+      const res = await createReport(payload);
+      const created = (res.data as any) || payload;
+      setApiReports((prev) => [created, ...prev]);
+    } catch (err: any) {
+      setApiError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -105,7 +110,7 @@ export function Reports() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-blue-400/80 uppercase tracking-wide">This Month</p>
-              <p className="text-2xl font-bold text-blue-400 mt-1">12</p>
+              <p className="text-2xl font-bold text-blue-400 mt-1">{thisMonthCount}</p>
             </div>
           </div>
         </Card>
@@ -114,7 +119,7 @@ export function Reports() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-500 uppercase tracking-wide">Scheduled</p>
-              <p className="text-2xl font-bold text-zinc-100 mt-1">5</p>
+              <p className="text-2xl font-bold text-zinc-100 mt-1">{scheduledCount}</p>
             </div>
           </div>
         </Card>
@@ -123,7 +128,7 @@ export function Reports() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-emerald-400/80 uppercase tracking-wide">Downloads</p>
-              <p className="text-2xl font-bold text-emerald-400 mt-1">847</p>
+              <p className="text-2xl font-bold text-emerald-400 mt-1">{totalDownloads}</p>
             </div>
             <Download className="w-8 h-8 text-emerald-500/50" />
           </div>
@@ -203,7 +208,11 @@ export function Reports() {
             </div>
           </div>
 
-          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={creating}
+            onClick={handleGenerateReport}
+          >
             <FileText className="w-4 h-4 mr-2" />
             Generate Report
           </Button>

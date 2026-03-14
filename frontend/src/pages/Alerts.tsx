@@ -24,53 +24,6 @@ interface Alert {
   value: string;
 }
 
-const mockAlerts: Alert[] = [
-  {
-    id: "ALT-001",
-    type: "critical",
-    message: "Dangerous AQI Level Detected",
-    location: "Park Street",
-    timestamp: "2026-03-13 14:32:15",
-    status: "active",
-    value: "AQI: 165",
-  },
-  {
-    id: "ALT-002",
-    type: "warning",
-    message: "High Water Level Warning",
-    location: "Sector V",
-    timestamp: "2026-03-13 13:45:22",
-    status: "active",
-    value: "Water: 3.1m",
-  },
-  {
-    id: "ALT-003",
-    type: "critical",
-    message: "Temperature Exceeds Threshold",
-    location: "New Town",
-    timestamp: "2026-03-13 12:20:08",
-    status: "resolved",
-    value: "Temp: 36°C",
-  },
-  {
-    id: "ALT-004",
-    type: "info",
-    message: "Sensor Connection Restored",
-    location: "Salt Lake",
-    timestamp: "2026-03-13 11:15:45",
-    status: "resolved",
-    value: "SEN-001",
-  },
-  {
-    id: "ALT-005",
-    type: "warning",
-    message: "Moderate AQI Level",
-    location: "Rajarhat",
-    timestamp: "2026-03-13 10:30:12",
-    status: "dismissed",
-    value: "AQI: 95",
-  },
-];
 
 function getAlertColor(type: string) {
   switch (type) {

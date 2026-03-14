@@ -12,6 +12,7 @@ import apiKeyRoutes from "./modules/ApiKeyService/apiKey.routes";
 import reportRoutes from "./modules/ReportService/report.routes";
 import systemRoutes from "./modules/SystemService/system.routes";
 import userRoutes from "./modules/UserService/user.routes";
+import devRoutes from "./modules/DevService/dev.routes";
 
 const app = express();
 
@@ -73,6 +74,9 @@ app.use("/api/v1", systemRoutes);
 // Settings -> UserService (optional)
 app.use("/api/v1", userRoutes);
 
+// Dev-only ingestion endpoint for synthetic data.
+app.use("/api/v1", devRoutes);
+
 // ---- 404 handler ----
 // Purpose: Catch unhandled routes and return a consistent error envelope.
 app.use((_req: Request, res: Response) => {
@@ -98,4 +102,3 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 export default app;
-

@@ -6,60 +6,6 @@ import { useEffect, useState } from "react";
 import { fetchSyncBatches } from "../services/syncService";
 import { EmptyState } from "../components/EmptyState";
 
-const syncData = [
-  { time: "10:00", received: 450, rejected: 12 },
-  { time: "10:30", received: 380, rejected: 8 },
-  { time: "11:00", received: 820, rejected: 35 },
-  { time: "11:30", received: 290, rejected: 5 },
-  { time: "12:00", received: 1200, rejected: 52 },
-  { time: "12:30", received: 420, rejected: 15 },
-  { time: "13:00", received: 560, rejected: 18 },
-  { time: "13:30", received: 340, rejected: 7 },
-  { time: "14:00", received: 950, rejected: 42 },
-];
-
-const mockBatchLogs = [
-  {
-    id: "BATCH-001",
-    deviceId: "GW-003",
-    packets: 1200,
-    received: 1148,
-    rejected: 52,
-    duration: "3.2s",
-    timestamp: "2026-03-13 12:05:23",
-    status: "completed",
-  },
-  {
-    id: "BATCH-002",
-    deviceId: "GW-005",
-    packets: 950,
-    received: 908,
-    rejected: 42,
-    duration: "2.8s",
-    timestamp: "2026-03-13 14:12:45",
-    status: "completed",
-  },
-  {
-    id: "BATCH-003",
-    deviceId: "GW-002",
-    packets: 820,
-    received: 785,
-    rejected: 35,
-    duration: "2.5s",
-    timestamp: "2026-03-13 11:08:12",
-    status: "completed",
-  },
-  {
-    id: "BATCH-004",
-    deviceId: "GW-001",
-    packets: 450,
-    received: 438,
-    rejected: 12,
-    duration: "1.5s",
-    timestamp: "2026-03-13 10:15:33",
-    status: "completed",
-  },
-];
 
 export function BulkDataSync() {
   const [apiBatches, setApiBatches] = useState<any[]>([]);
@@ -74,7 +20,31 @@ export function BulkDataSync() {
       .finally(() => setLoading(false));
   }, []);
 
-  const batchLogs = apiBatches;
+  const batchLogs = apiBatches.map((log) => {
+    const startedAt = log.timestamp || log.started_at || log.startedAt;
+    const finishedAt = log.finished_at || log.finishedAt;
+    const durationMs =
+      startedAt && finishedAt
+        ? Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime())
+        : null;
+
+    return {
+      id: log.id,
+      deviceId: log.deviceId || log.device_id || log.source || "unknown",
+      packets: log.packets ?? log.total_records ?? 0,
+      received: log.received ?? log.inserted_records ?? 0,
+      rejected: log.rejected ?? log.failed_records ?? 0,
+      duration: log.duration || (durationMs ? `${(durationMs / 1000).toFixed(1)}s` : "—"),
+      timestamp: log.timestamp || log.started_at || "",
+      status: String(log.status || "completed").toLowerCase(),
+    };
+  });
+
+  const syncData = batchLogs.map((log) => ({
+    time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : "--",
+    received: log.received,
+    rejected: log.rejected,
+  }));
 
   const totalPackets = batchLogs.reduce((sum, log) => sum + log.packets, 0);
   const totalReceived = batchLogs.reduce((sum, log) => sum + log.received, 0);

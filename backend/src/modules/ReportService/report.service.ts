@@ -2,8 +2,17 @@
 
 import { db } from "../../utils/db";
 import type { ReportDTO } from "../../types/report";
+import { DEV_MODE } from "../../config";
+import {
+  createDevReport,
+  getDevReportById,
+  listDevReports,
+} from "../../services/devData";
 
 export async function listReports(): Promise<ReportDTO[]> {
+  // DEV_MODE: return generated reports without DB access.
+  if (DEV_MODE) return listDevReports();
+
   const result = await db.query(
     `SELECT id, name, report_type, generated_at, meta_json
      FROM reports
@@ -24,6 +33,9 @@ export async function listReports(): Promise<ReportDTO[]> {
 }
 
 export async function getReportById(id: string): Promise<ReportDTO | null> {
+  // DEV_MODE: return generated report by id.
+  if (DEV_MODE) return getDevReportById(id);
+
   const result = await db.query(
     `SELECT id, name, report_type, generated_at, meta_json
      FROM reports
@@ -47,6 +59,9 @@ export async function getReportById(id: string): Promise<ReportDTO | null> {
 }
 
 export async function createReport(payload: any): Promise<ReportDTO> {
+  // DEV_MODE: create in-memory report only.
+  if (DEV_MODE) return createDevReport(payload);
+
   // Insert report metadata; actual generation happens asynchronously.
   const meta = {
     zone: payload.zone || "All Zones",

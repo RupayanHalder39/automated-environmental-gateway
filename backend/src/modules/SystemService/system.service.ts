@@ -2,8 +2,17 @@
 
 import { db } from "../../utils/db";
 import type { SystemStatusDTO, SystemServiceDTO } from "../../types/system";
+import { DEV_MODE } from "../../config";
+import {
+  getDevIngestionStatus,
+  getDevSystemMetrics,
+  getDevSystemStatus,
+} from "../../services/devData";
 
 export async function getSystemStatus(): Promise<SystemStatusDTO> {
+  // DEV_MODE: return generated system status without DB access.
+  if (DEV_MODE) return getDevSystemStatus();
+
   // Purpose: Provide a combined status payload for the System Status UI.
   // Tables used: devices, sensor_readings, bulk_sync_batches.
 
@@ -66,6 +75,9 @@ export async function getSystemStatus(): Promise<SystemStatusDTO> {
 }
 
 export async function getSystemMetrics() {
+  // DEV_MODE: return generated system metrics without DB access.
+  if (DEV_MODE) return getDevSystemMetrics();
+
   // Purpose: Lightweight metrics for charts.
   // This aggregates key signals from existing tables.
   const result = await db.query(
@@ -79,10 +91,12 @@ export async function getSystemMetrics() {
 }
 
 export async function getIngestionStatus() {
+  // DEV_MODE: return generated ingestion status without DB access.
+  if (DEV_MODE) return getDevIngestionStatus();
+
   // Purpose: Show ingestion health and recent batch status.
   const result = await db.query(
     `SELECT * FROM bulk_sync_batches ORDER BY started_at DESC LIMIT 20`
   );
   return result.rows;
 }
-

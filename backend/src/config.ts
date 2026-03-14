@@ -7,10 +7,13 @@ dotenv.config();
 // Server port: controls which port Express listens on.
 export const PORT = Number(process.env.PORT) || 3000;
 
+// DEV_MODE: when true, API responses use generated data instead of database reads.
+export const DEV_MODE =
+  String(process.env.DEV_MODE || "").toLowerCase() === "true";
+
 // PostgreSQL connection details: used by the shared DB pool in utils/db.ts
 export const PG_HOST = process.env.PG_HOST || "";
 export const PG_PORT = Number(process.env.PG_PORT) || 5432;
 export const PG_USER = process.env.PG_USER || "";
 export const PG_PASSWORD = process.env.PG_PASSWORD || "";
 export const PG_DATABASE = process.env.PG_DATABASE || "";
-

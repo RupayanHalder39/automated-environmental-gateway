@@ -1,8 +1,18 @@
 // SyncService: bulk ingestion workflow
 
 import { db } from "../../utils/db";
+import { DEV_MODE } from "../../config";
+import {
+  createDevBatch,
+  getDevBatchById,
+  listDevBatches,
+  updateDevBatchCounts,
+} from "../../services/devData";
 
 export async function createBatch(payload: { source?: string }) {
+  // DEV_MODE: create in-memory batch only.
+  if (DEV_MODE) return createDevBatch(payload.source);
+
   // Creates a new bulk sync batch before ingestion starts.
   const result = await db.query(
     `INSERT INTO bulk_sync_batches (source, started_at, status, total_records, inserted_records, failed_records)
@@ -14,6 +24,9 @@ export async function createBatch(payload: { source?: string }) {
 }
 
 export async function listBatches() {
+  // DEV_MODE: return generated batch logs.
+  if (DEV_MODE) return listDevBatches();
+
   const result = await db.query(
     `SELECT * FROM bulk_sync_batches ORDER BY started_at DESC LIMIT 200`
   );
@@ -21,6 +34,9 @@ export async function listBatches() {
 }
 
 export async function getBatchById(id: string) {
+  // DEV_MODE: return generated batch by id.
+  if (DEV_MODE) return getDevBatchById(id);
+
   const result = await db.query(
     `SELECT * FROM bulk_sync_batches WHERE id = $1`,
     [id]
@@ -29,6 +45,15 @@ export async function getBatchById(id: string) {
 }
 
 export async function ingestBatch(id: string, payload: { readings?: any[] }) {
+  // DEV_MODE: update in-memory batch stats only.
+  if (DEV_MODE) {
+    const readings = payload.readings || [];
+    const inserted = readings.length;
+    const failed = 0;
+    updateDevBatchCounts(id, readings.length, inserted, failed);
+    return { inserted, failed };
+  }
+
   // Inserts readings and updates batch counters.
   const readings = payload.readings || [];
   if (readings.length === 0) {
@@ -92,4 +117,3 @@ export async function ingestBatch(id: string, payload: { readings?: any[] }) {
 
   return { inserted, failed };
 }
-

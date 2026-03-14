@@ -3,6 +3,14 @@
 import { db } from "../../utils/db";
 import { ruleValidator } from "../../utils/ruleValidator";
 import type { RuleDTO } from "../../types/rule";
+import { DEV_MODE } from "../../config";
+import {
+  createDevRule,
+  deleteDevRule,
+  getDevRuleById,
+  listDevRules,
+  updateDevRule,
+} from "../../services/devData";
 
 function toSensorType(metric: string) {
   const m = metric.toUpperCase();
@@ -13,6 +21,9 @@ function toSensorType(metric: string) {
 }
 
 export async function listRules(): Promise<RuleDTO[]> {
+  // DEV_MODE: return generated rules without DB access.
+  if (DEV_MODE) return listDevRules();
+
   // Tables: alert_rules, alerts (for lastTriggered)
   const result = await db.query(
     `SELECT ar.id, ar.name, ar.sensor_type, ar.condition_json, ar.is_active,
@@ -37,6 +48,9 @@ export async function listRules(): Promise<RuleDTO[]> {
 }
 
 export async function getRuleById(id: string): Promise<RuleDTO | null> {
+  // DEV_MODE: return generated rule by id.
+  if (DEV_MODE) return getDevRuleById(id);
+
   const result = await db.query(
     `SELECT ar.id, ar.name, ar.sensor_type, ar.condition_json, ar.is_active,
             MAX(a.triggered_at) AS last_triggered
@@ -62,6 +76,9 @@ export async function getRuleById(id: string): Promise<RuleDTO | null> {
 }
 
 export async function createRule(payload: any): Promise<RuleDTO> {
+  // DEV_MODE: create in-memory rule only.
+  if (DEV_MODE) return createDevRule(payload);
+
   // Validate payload against DTO expectations.
   const validation = ruleValidator(payload);
   if (!validation.valid) throw new Error(validation.message);
@@ -96,6 +113,9 @@ export async function createRule(payload: any): Promise<RuleDTO> {
 }
 
 export async function updateRule(id: string, payload: any): Promise<RuleDTO | null> {
+  // DEV_MODE: update in-memory rule only.
+  if (DEV_MODE) return updateDevRule(id, payload);
+
   const sensorType = payload.metric ? toSensorType(payload.metric) : undefined;
   const condition = payload.operator || payload.threshold || payload.location || payload.action
     ? {
@@ -134,6 +154,9 @@ export async function updateRule(id: string, payload: any): Promise<RuleDTO | nu
 }
 
 export async function deleteRule(id: string) {
+  // DEV_MODE: soft delete in-memory rule only.
+  if (DEV_MODE) return deleteDevRule(id);
+
   // Soft delete by marking inactive.
   const result = await db.query(
     `UPDATE alert_rules SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING *`,

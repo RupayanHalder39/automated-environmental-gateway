@@ -32,62 +32,6 @@ interface Device {
   maintenance: boolean;
 }
 
-const mockDevices: Device[] = [
-  {
-    id: "GW-001",
-    location: "Salt Lake",
-    status: "online",
-    lastHeartbeat: "30 seconds ago",
-    signalStrength: 95,
-    batteryLevel: 87,
-    maintenance: false,
-  },
-  {
-    id: "GW-002",
-    location: "New Town",
-    status: "online",
-    lastHeartbeat: "45 seconds ago",
-    signalStrength: 88,
-    batteryLevel: 92,
-    maintenance: false,
-  },
-  {
-    id: "GW-003",
-    location: "Sector V",
-    status: "maintenance",
-    lastHeartbeat: "2 minutes ago",
-    signalStrength: 72,
-    batteryLevel: 45,
-    maintenance: true,
-  },
-  {
-    id: "GW-004",
-    location: "Rajarhat",
-    status: "online",
-    lastHeartbeat: "1 minute ago",
-    signalStrength: 91,
-    batteryLevel: 78,
-    maintenance: false,
-  },
-  {
-    id: "GW-005",
-    location: "Park Street",
-    status: "offline",
-    lastHeartbeat: "8 minutes ago",
-    signalStrength: 0,
-    batteryLevel: 12,
-    maintenance: true,
-  },
-  {
-    id: "GW-006",
-    location: "Ballygunge",
-    status: "online",
-    lastHeartbeat: "20 seconds ago",
-    signalStrength: 84,
-    batteryLevel: 95,
-    maintenance: false,
-  },
-];
 
 function getStatusColor(status: string) {
   switch (status) {
