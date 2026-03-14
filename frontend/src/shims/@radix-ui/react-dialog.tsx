@@ -1,4 +1,12 @@
-import { createPrimitiveComponents } from '../radixHelper';
+import * as React from "react";
+import { createPortal } from "react-dom";
+import { createPrimitiveComponents } from "../radixHelper";
+
+const PortalImpl = React.forwardRef<HTMLElement, React.PropsWithChildren<any>>(({ children }, _ref) => {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+});
+PortalImpl.displayName = "RadixDialogPortal";
 
 const {
   Root,
@@ -12,7 +20,7 @@ const {
 } = createPrimitiveComponents({
   Root: "div",
   Trigger: "button",
-  Portal: "div",
+  Portal: PortalImpl,
   Close: "button",
   Overlay: "div",
   Content: "div",

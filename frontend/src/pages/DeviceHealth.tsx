@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -59,12 +59,14 @@ function getSignalColor(strength: number) {
 }
 
 export function DeviceHealth() {
-  const [locationFilter, setLocationFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [apiDevices, setApiDevices] = useState<Device[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const didInitLocations = useRef(false);
+  const didInitStatuses = useRef(false);
 
   // Connect to backend: load device list for Device Health view.
   useEffect(() => {
@@ -75,10 +77,31 @@ export function DeviceHealth() {
   }, []);
 
   const devices = apiDevices;
+  const locationOptions = useMemo(
+    () => Array.from(new Set(devices.map((device) => device.location))).sort(),
+    [devices],
+  );
+  const statusOptions = useMemo(() => ["online", "offline", "maintenance"], []);
+
+  useEffect(() => {
+    if (!didInitLocations.current && locationOptions.length > 0) {
+      setSelectedLocations(locationOptions);
+      didInitLocations.current = true;
+    }
+  }, [locationOptions]);
+
+  useEffect(() => {
+    if (!didInitStatuses.current && statusOptions.length > 0) {
+      setSelectedStatuses(statusOptions);
+      didInitStatuses.current = true;
+    }
+  }, [statusOptions]);
 
   const filteredDevices = devices.filter((device) => {
-    if (locationFilter !== "all" && device.location !== locationFilter) return false;
-    if (statusFilter !== "all" && device.status !== statusFilter) return false;
+    if (selectedLocations.length === 0) return false;
+    if (selectedStatuses.length === 0) return false;
+    if (!selectedLocations.includes(device.location)) return false;
+    if (!selectedStatuses.includes(device.status)) return false;
     return true;
   });
 
@@ -151,35 +174,30 @@ export function DeviceHealth() {
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <label className="text-xs text-zinc-400 mb-2 block">Filter by Location</label>
-            <Select value={locationFilter} onValueChange={setLocationFilter}>
-              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-800 border-zinc-700">
-                <SelectItem value="all">All Locations</SelectItem>
-                <SelectItem value="Salt Lake">Salt Lake</SelectItem>
-                <SelectItem value="New Town">New Town</SelectItem>
-                <SelectItem value="Sector V">Sector V</SelectItem>
-                <SelectItem value="Rajarhat">Rajarhat</SelectItem>
-                <SelectItem value="Park Street">Park Street</SelectItem>
-                <SelectItem value="Ballygunge">Ballygunge</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectDropdown
+              id="location-filter"
+              placeholder="All Locations"
+              allLabel="All Locations"
+              emptyLabel="No locations"
+              multipleLabel="Multiple locations"
+              options={locationOptions}
+              selected={selectedLocations}
+              onChange={setSelectedLocations}
+            />
           </div>
 
           <div className="flex-1">
             <label className="text-xs text-zinc-400 mb-2 block">Filter by Status</label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-800 border-zinc-700">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="online">Online</SelectItem>
-                <SelectItem value="offline">Offline</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectDropdown
+              id="status-filter"
+              placeholder="All Status"
+              allLabel="All Status"
+              emptyLabel="No status"
+              multipleLabel="Multiple status"
+              options={statusOptions}
+              selected={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
           </div>
 
           <div className="flex-1"></div>
@@ -253,7 +271,7 @@ export function DeviceHealth() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                      className="border-zinc-700 bg-zinc-800/70 text-zinc-200 hover:bg-zinc-700/80"
                     >
                       Details
                     </Button>
@@ -267,7 +285,7 @@ export function DeviceHealth() {
 
       {/* Device Detail Dialog */}
       <Dialog open={!!selectedDevice} onOpenChange={() => setSelectedDevice(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-2xl">
+        <DialogContent className="bg-zinc-200 border-zinc-300 text-zinc-900 max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-emerald-400" />
@@ -343,6 +361,106 @@ export function DeviceHealth() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+type MultiSelectProps = {
+  id: string;
+  placeholder: string;
+  allLabel: string;
+  emptyLabel: string;
+  multipleLabel: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+};
+
+function MultiSelectDropdown({
+  id,
+  placeholder,
+  allLabel,
+  emptyLabel,
+  multipleLabel,
+  options,
+  selected,
+  onChange,
+}: MultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const allSelected = options.length > 0 && selected.length === options.length;
+
+  const label = (() => {
+    if (options.length === 0) return emptyLabel;
+    if (allSelected) return allLabel;
+    if (selected.length === 0) return emptyLabel;
+    if (selected.length === 1) return selected[0];
+    return multipleLabel;
+  })();
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleOption = (value: string) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter((item) => item !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  const toggleAll = () => {
+    if (allSelected) {
+      onChange([]);
+    } else {
+      onChange(options);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        id={id}
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md px-3 py-2 text-left flex items-center justify-between"
+      >
+        <span className="text-sm">{label || placeholder}</span>
+        <span className="text-zinc-400">▾</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-2 w-full bg-zinc-900 border border-zinc-700 rounded-md shadow-lg p-2 space-y-1">
+          <label className="flex items-center gap-2 px-2 py-1 text-sm text-zinc-200 cursor-pointer">
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+            {allLabel}
+          </label>
+          <div className="border-t border-zinc-800 my-1" />
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center gap-2 px-2 py-1 text-sm text-zinc-200 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => toggleOption(option)}
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
