@@ -12,7 +12,7 @@ export async function listAnomalies(query: any): Promise<AnomalyDTO[]> {
      LIMIT 200`
   );
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     sensorId: row.sensor_code,
     invalidValue: row.details_json?.invalidValue || "",
@@ -33,7 +33,7 @@ export async function getAnomalyById(id: string): Promise<AnomalyDTO | null> {
   );
 
   if (!result.rows.length) return null;
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     id: row.id,
     sensorId: row.sensor_code,
@@ -71,7 +71,7 @@ export async function getAnomaliesBySensor(sensorId: string): Promise<AnomalyDTO
     [sensorId]
   );
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     sensorId: row.sensor_code,
     invalidValue: row.details_json?.invalidValue || "",
@@ -125,4 +125,3 @@ export async function createAnomaly(payload: any): Promise<AnomalyDTO> {
     severity: row.severity?.toLowerCase() || "low",
   };
 }
-

@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@radix-ui/*": ["./src/shims/@radix-ui/*"],
+      "class-variance-authority": ["./src/shims/class-variance-authority"],
+      "clsx": ["./src/shims/clsx"],
+      "cmdk": ["./src/shims/cmdk"],
+      "embla-carousel-react": ["./src/shims/embla-carousel-react"],
+      "input-otp": ["./src/shims/input-otp"],
+      "next-themes": ["./src/shims/next-themes"],
+      "react-day-picker": ["./src/shims/react-day-picker"],
+      "react-hook-form": ["./src/shims/react-hook-form"],
+      "react-resizable-panels": ["./src/shims/react-resizable-panels"],
+      "sonner": ["./src/shims/sonner"],
+      "tailwind-merge": ["./src/shims/tailwind-merge"],
+      "vaul": ["./src/shims/vaul"]
+    }
+  },
+  "include": ["src"]
+}

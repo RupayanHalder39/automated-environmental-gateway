@@ -12,7 +12,7 @@ export async function listApiKeys(): Promise<ApiKeyDTO[]> {
      ORDER BY created_at DESC`
   );
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     name: row.name,
     created: row.created_at ? new Date(row.created_at).toISOString() : "",
@@ -105,4 +105,3 @@ export async function getPublicHistorical(query: any) {
   );
   return result.rows;
 }
-

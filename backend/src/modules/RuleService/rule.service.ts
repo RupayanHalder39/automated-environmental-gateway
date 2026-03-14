@@ -23,7 +23,7 @@ export async function listRules(): Promise<RuleDTO[]> {
      ORDER BY ar.created_at DESC`
   );
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     name: row.name,
     metric: row.sensor_type,
@@ -47,7 +47,7 @@ export async function getRuleById(id: string): Promise<RuleDTO | null> {
     [id]
   );
   if (!result.rows.length) return null;
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     id: row.id,
     name: row.name,
@@ -141,4 +141,3 @@ export async function deleteRule(id: string) {
   );
   return result.rows[0] ?? null;
 }
-

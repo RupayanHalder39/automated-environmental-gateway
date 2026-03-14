@@ -107,11 +107,10 @@ export async function getDeviceAggregate(id: string, query: any) {
     [id, from, to]
   );
 
-  return result.rows.map((r) => ({ date: new Date(r.bucket).toISOString(), value: Number(r.avg_aqi) }));
+  return (result.rows as any[]).map((r: any) => ({ date: new Date(r.bucket).toISOString(), value: Number(r.avg_aqi) }));
 }
 
 export async function exportHistory(query: any) {
   // For now, reuse raw readings export in JSON form.
   return getHistoryReadings(query);
 }
-

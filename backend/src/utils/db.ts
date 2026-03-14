@@ -16,4 +16,3 @@ export async function testConnection() {
   const result = await db.query("SELECT NOW() AS now");
   return result.rows[0];
 }
-

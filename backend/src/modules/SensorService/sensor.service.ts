@@ -4,6 +4,19 @@
 import { db } from "../../utils/db";
 import type { SensorDTO, SensorSummaryDTO } from "../../types/sensor";
 
+type SensorQueryRow = {
+  sensor_code: string;
+  location_name: string;
+  latitude: number | null;
+  longitude: number | null;
+  device_status: string;
+  recorded_at: string | null;
+  aqi: number | null;
+  temperature_c: number | null;
+  humidity_pct: number | null;
+  water_level_cm: number | null;
+};
+
 // Helper: convert cm -> meters for UI consistency.
 function cmToMeters(value: number | null) {
   if (value === null || value === undefined) return null;
@@ -31,7 +44,8 @@ export async function listSensors(): Promise<SensorDTO[]> {
      ORDER BY s.id, sr.recorded_at DESC`
   );
 
-  return result.rows.map((row) => ({
+  const rows = result.rows as SensorQueryRow[];
+  return rows.map((row) => ({
     id: row.sensor_code,
     location: row.location_name,
     lat: Number(row.latitude ?? 0),
@@ -69,7 +83,7 @@ export async function getSensorById(id: string): Promise<SensorDTO | null> {
   );
 
   if (result.rows.length === 0) return null;
-  const row = result.rows[0];
+  const row = result.rows[0] as SensorQueryRow;
   return {
     id: row.sensor_code,
     location: row.location_name,
@@ -171,4 +185,3 @@ export async function getSensorHealth() {
     offline: Number(result.rows[0]?.offline || 0),
   };
 }
-

@@ -1,0 +1,53 @@
+import { createPrimitiveComponents } from '../radixHelper';
+
+const {
+  Root,
+  Trigger,
+  Icon,
+  Value,
+  Portal,
+  Content,
+  Viewport,
+  Item,
+  ItemIndicator,
+  ItemText,
+  Group,
+  Label,
+  Separator,
+  ScrollUpButton,
+  ScrollDownButton
+} = createPrimitiveComponents({
+  Root: "div",
+  Trigger: "button",
+  Icon: "span",
+  Value: "div",
+  Portal: "div",
+  Content: "div",
+  Viewport: "div",
+  Item: "button",
+  ItemIndicator: "button",
+  ItemText: "button",
+  Group: "div",
+  Label: "span",
+  Separator: "div",
+  ScrollUpButton: "button",
+  ScrollDownButton: "button",
+});
+
+export {
+  Root,
+  Trigger,
+  Icon,
+  Value,
+  Portal,
+  Content,
+  Viewport,
+  Item,
+  ItemIndicator,
+  ItemText,
+  Group,
+  Label,
+  Separator,
+  ScrollUpButton,
+  ScrollDownButton,
+};

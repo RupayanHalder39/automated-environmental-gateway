@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --aeg-bg: #0b0f14;
+  --aeg-panel: #111827;
+  --aeg-border: #1f2937;
+  --aeg-accent: #10b981;
+  --aeg-text: #e5e7eb;
+  --aeg-muted: #9ca3af;
+}
+
+html, body {
+  height: 100%;
+  background: var(--aeg-bg);
+  color: var(--aeg-text);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+}
+

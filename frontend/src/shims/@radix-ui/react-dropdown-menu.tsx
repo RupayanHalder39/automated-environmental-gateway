@@ -1,0 +1,53 @@
+import { createPrimitiveComponents } from '../radixHelper';
+
+const {
+  Root,
+  Trigger,
+  Portal,
+  Content,
+  Group,
+  Item,
+  CheckboxItem,
+  Label,
+  Separator,
+  ItemIndicator,
+  RadioGroup,
+  RadioItem,
+  Sub,
+  SubTrigger,
+  SubContent
+} = createPrimitiveComponents({
+  Root: "div",
+  Trigger: "button",
+  Portal: "div",
+  Content: "div",
+  Group: "div",
+  Item: "button",
+  CheckboxItem: "button",
+  Label: "span",
+  Separator: "div",
+  ItemIndicator: "button",
+  RadioGroup: "div",
+  RadioItem: "button",
+  Sub: "div",
+  SubTrigger: "button",
+  SubContent: "div",
+});
+
+export {
+  Root,
+  Trigger,
+  Portal,
+  Content,
+  Group,
+  Item,
+  CheckboxItem,
+  Label,
+  Separator,
+  ItemIndicator,
+  RadioGroup,
+  RadioItem,
+  Sub,
+  SubTrigger,
+  SubContent,
+};

@@ -10,7 +10,7 @@ export async function listReports(): Promise<ReportDTO[]> {
      ORDER BY generated_at DESC`
   );
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     name: row.name,
     type: row.report_type,
@@ -32,7 +32,7 @@ export async function getReportById(id: string): Promise<ReportDTO | null> {
   );
 
   if (!result.rows.length) return null;
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     id: row.id,
     name: row.name,
@@ -69,7 +69,7 @@ export async function createReport(payload: any): Promise<ReportDTO> {
     ]
   );
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     id: row.id,
     name: row.name,
@@ -82,4 +82,3 @@ export async function createReport(payload: any): Promise<ReportDTO> {
     waterAlerts: Number(row.meta_json?.waterAlerts || 0),
   };
 }
-

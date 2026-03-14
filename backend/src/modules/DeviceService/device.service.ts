@@ -19,7 +19,7 @@ export async function listDevices(): Promise<DeviceDTO[]> {
      ORDER BY d.device_code ASC`
   );
 
-  return result.rows.map((row) => {
+  return (result.rows as any[]).map((row: any) => {
     const offline = row.last_seen_at
       ? new Date(row.last_seen_at).getTime() < Date.now() - 5 * 60 * 1000
       : true;
@@ -56,7 +56,7 @@ export async function getDeviceById(id: string): Promise<DeviceDTO | null> {
 
   if (result.rows.length === 0) return null;
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   const offline = row.last_seen_at
     ? new Date(row.last_seen_at).getTime() < Date.now() - 5 * 60 * 1000
     : true;
@@ -124,4 +124,3 @@ export async function updateDeviceStatus(id: string, payload: { status?: string 
   );
   return result.rows[0] ?? null;
 }
-

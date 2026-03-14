@@ -22,7 +22,7 @@ export async function listAlerts(query: any): Promise<AlertDTO[]> {
     [status || null]
   );
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     type: severityToType(row.severity),
     message: row.message,
@@ -45,7 +45,7 @@ export async function getAlertById(id: string): Promise<AlertDTO | null> {
   );
 
   if (!result.rows.length) return null;
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     id: row.id,
     type: severityToType(row.severity),
@@ -150,4 +150,3 @@ export async function triggerAlertsForReading(payload: {
 
   return created;
 }
-
