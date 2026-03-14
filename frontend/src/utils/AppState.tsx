@@ -6,7 +6,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 export type AppFilters = {
   dateRange: "24hours" | "7days" | "30days" | "custom";
   metric: "aqi" | "temperature" | "humidity" | "waterLevel";
-  location: string; // e.g., all, saltlake, newtown
+  location: string[]; // e.g., ["Salt Lake", "New Town"]
 };
 
 export type AppSelection = {
@@ -27,7 +27,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [filters, setFiltersState] = useState<AppFilters>({
     dateRange: "7days",
     metric: "aqi",
-    location: "all",
+    location: [],
   });
   const [selection, setSelectionState] = useState<AppSelection>({});
 
@@ -49,4 +49,3 @@ export function useAppState() {
   if (!ctx) throw new Error("useAppState must be used inside AppStateProvider");
   return ctx;
 }
-

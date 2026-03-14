@@ -4,6 +4,7 @@ import { DashboardLayout } from "./components/DashboardLayout";
 
 // Pages aligned to Figma sidebar modules
 import { Dashboard } from "./pages/Dashboard";
+import { Sensors } from "./pages/Sensors";
 import { DeviceHealth } from "./pages/DeviceHealth";
 import { HistoricalData } from "./pages/HistoricalData";
 import { RulesEngine } from "./pages/RulesEngine";
@@ -24,7 +25,7 @@ export function App() {
           <Route element={<DashboardLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
-            <Route path="/sensors" element={<Dashboard />} />
+            <Route path="/sensors" element={<Sensors />} />
             <Route path="/device-health" element={<DeviceHealth />} />
             <Route path="/historical-data" element={<HistoricalData />} />
             <Route path="/rules-engine" element={<RulesEngine />} />

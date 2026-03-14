@@ -39,3 +39,26 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   }
   return res.json();
 }
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`DELETE ${path} failed with ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiGetBlob(path: string): Promise<{ blob: Blob; filename?: string }> {
+  const res = await fetch(`${API_BASE_URL}${path}`);
+  if (!res.ok) {
+    throw new Error(`GET ${path} failed with ${res.status}`);
+  }
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("content-disposition") || "";
+  const match = contentDisposition.match(/filename="([^"]+)"/i);
+  const filename = match?.[1];
+  return { blob, filename };
+}

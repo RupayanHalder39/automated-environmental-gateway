@@ -29,6 +29,23 @@ export async function getReportById(req: Request, res: Response, next: NextFunct
   }
 }
 
+// GET /reports/:id/download
+export async function downloadReportPdf(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const payload = await reportService.downloadReportPdf(id);
+    if (!payload) {
+      res.status(404).json({ message: "Report not found" });
+      return;
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${payload.filename}"`);
+    res.send(payload.buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /reports
 export async function createReport(req: Request, res: Response, next: NextFunction) {
   // Purpose: Trigger report generation.
@@ -41,3 +58,14 @@ export async function createReport(req: Request, res: Response, next: NextFuncti
   }
 }
 
+// DELETE /reports/:id
+export async function deleteReport(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await reportService.deleteReport(id);
+    const response: ApiResponse<ReportDTO | null> = { data };
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}

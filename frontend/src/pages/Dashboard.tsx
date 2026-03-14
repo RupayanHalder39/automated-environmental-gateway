@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import L from "leaflet";
 import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -34,6 +35,9 @@ export function Dashboard() {
   const [apiSensors, setApiSensors] = useState<Sensor[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
 
   // Connect to backend: load live sensor list for the dashboard.
   useEffect(() => {
@@ -53,6 +57,73 @@ export function Dashboard() {
     sensors.length > 0
       ? Math.round(sensors.reduce((sum, s) => sum + s.aqi, 0) / sensors.length)
       : 0;
+
+  const mapMarkers = useMemo(
+    () =>
+      sensors.filter((sensor) => Number.isFinite(sensor.lat) && Number.isFinite(sensor.lng)),
+    [sensors],
+  );
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    if (!mapRef.current) {
+      mapRef.current = L.map(mapContainerRef.current, {
+        center: [22.5726, 88.3639],
+        zoom: 11,
+        zoomControl: false,
+      });
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+        maxZoom: 18,
+      }).addTo(mapRef.current);
+
+      markersLayerRef.current = L.layerGroup().addTo(mapRef.current);
+      // Ensure Leaflet measures the container after mount.
+      setTimeout(() => mapRef.current?.invalidateSize(), 0);
+    }
+
+    if (markersLayerRef.current) {
+      markersLayerRef.current.clearLayers();
+      mapMarkers.forEach((sensor) => {
+        const aqiColor = getAQIColor(sensor.aqi);
+        const color =
+          aqiColor.bg === "bg-emerald-500"
+            ? "#10b981"
+            : aqiColor.bg === "bg-yellow-500"
+              ? "#f59e0b"
+              : aqiColor.bg === "bg-orange-500"
+                ? "#f97316"
+                : "#ef4444";
+
+        const iconHtml = `
+          <div class=\"sensor-pin\">
+            <div class=\"sensor-pin__dot\" style=\"background:${color}\"></div>
+          </div>
+        `;
+
+        const marker = L.marker([sensor.lat, sensor.lng], {
+          icon: L.divIcon({
+            className: "sensor-pin-wrapper",
+            html: iconHtml,
+            iconSize: [28, 28],
+            iconAnchor: [14, 28],
+          }),
+        }).bindPopup(
+          `<strong>${sensor.location}</strong><br/>AQI: ${sensor.aqi}<br/>Temp: ${sensor.temperature}°C`
+        );
+
+        marker.on("click", () => setSelectedSensor(sensor));
+        marker.addTo(markersLayerRef.current!);
+      });
+    }
+
+    if (mapRef.current && mapMarkers.length > 0) {
+      const bounds = L.latLngBounds(mapMarkers.map((s) => [s.lat, s.lng] as [number, number]));
+      mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+    }
+  }, [mapMarkers]);
 
   return (
     <div className="p-6 space-y-6">
@@ -134,9 +205,9 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1.2fr)]">
         {/* Interactive Map */}
-        <Card className="col-span-2 bg-zinc-900 border-zinc-800 overflow-hidden">
+        <Card className="min-w-0 bg-zinc-900 border-zinc-800 overflow-hidden">
           <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-zinc-100">Kolkata Sensor Map</h2>
             <div className="flex items-center gap-2">
@@ -146,28 +217,18 @@ export function Dashboard() {
           </div>
 
           <div className="relative bg-zinc-800" style={{ height: "600px" }}>
-            {/* Map Background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-800">
-              {/* Grid overlay */}
-              <div
-                className="absolute inset-0 opacity-20"
-                style={{
-                  backgroundImage: `
-                    linear-gradient(to right, rgb(161 161 170 / 0.1) 1px, transparent 1px),
-                    linear-gradient(to bottom, rgb(161 161 170 / 0.1) 1px, transparent 1px)
-                  `,
-                  backgroundSize: "40px 40px",
-                }}
-              ></div>
+            <div ref={mapContainerRef} className="absolute inset-0 z-0" />
 
+            {/* Overlays */}
+            <div className="absolute inset-0 z-10 pointer-events-none">
               {/* Map title */}
-              <div className="absolute top-4 left-4 bg-zinc-900/80 backdrop-blur px-3 py-2 rounded-lg border border-zinc-700">
+              <div className="absolute top-4 left-4 bg-zinc-900/80 backdrop-blur px-3 py-2 rounded-lg border border-zinc-700 pointer-events-auto">
                 <p className="text-sm font-semibold text-zinc-100">Kolkata Metropolitan Area</p>
                 <p className="text-xs text-zinc-400">Environmental Monitoring Network</p>
               </div>
 
               {/* Legend */}
-              <div className="absolute top-4 right-4 bg-zinc-900/80 backdrop-blur px-3 py-2 rounded-lg border border-zinc-700 space-y-1">
+              <div className="absolute top-4 right-4 bg-zinc-900/80 backdrop-blur px-3 py-2 rounded-lg border border-zinc-700 space-y-1 pointer-events-auto">
                 <p className="text-xs font-semibold text-zinc-300 mb-2">AQI Status</p>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
@@ -186,54 +247,12 @@ export function Dashboard() {
                   <span className="text-xs text-zinc-400">Dangerous (151+)</span>
                 </div>
               </div>
-
-              {/* Sensor Markers */}
-              {sensors.map((sensor, index) => {
-                const aqiColor = getAQIColor(sensor.aqi);
-                // Position sensors relative to map
-                const positions = [
-                  { top: "35%", left: "40%" }, // Salt Lake
-                  { top: "25%", left: "60%" }, // New Town
-                  { top: "35%", left: "48%" }, // Sector V
-                  { top: "15%", left: "55%" }, // Rajarhat
-                  { top: "55%", left: "25%" }, // Park Street
-                ];
-
-                return (
-                  <div
-                    key={sensor.id}
-                    className="absolute cursor-pointer group"
-                    style={positions[index]}
-                    onClick={() => setSelectedSensor(sensor)}
-                  >
-                    {/* Pulse effect */}
-                    <div
-                      className={`absolute inset-0 ${aqiColor.bg} rounded-full animate-ping opacity-75`}
-                      style={{ width: "24px", height: "24px" }}
-                    ></div>
-
-                    {/* Marker */}
-                    <div
-                      className={`relative ${aqiColor.bg} rounded-full border-2 border-zinc-900 flex items-center justify-center transition-transform group-hover:scale-125`}
-                      style={{ width: "24px", height: "24px" }}
-                    >
-                      <MapPin className="w-3 h-3 text-white" />
-                    </div>
-
-                    {/* Label */}
-                    <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-zinc-900/90 backdrop-blur px-2 py-1 rounded border border-zinc-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                      <p className="text-xs font-medium text-zinc-100">{sensor.location}</p>
-                      <p className={`text-xs ${aqiColor.text}`}>AQI: {sensor.aqi}</p>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </Card>
 
         {/* Activity Feed */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="min-w-0 bg-zinc-900 border-zinc-800">
           <div className="p-6 border-b border-zinc-800">
             <h2 className="text-lg font-semibold text-zinc-100">Latest Activity</h2>
           </div>

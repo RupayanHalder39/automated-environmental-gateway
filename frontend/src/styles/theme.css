@@ -22,3 +22,55 @@ button, input, select, textarea {
   font-family: inherit;
 }
 
+input[type="date"] {
+  background-color: #3f3f46;
+  color: #f4f4f5;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  opacity: 0.85;
+}
+
+@keyframes markerGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 12px 6px rgba(255, 255, 255, 0.15);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.sensor-marker {
+  animation: markerGlow 2.2s ease-out infinite;
+}
+
+.sensor-pin-wrapper {
+  background: transparent;
+  border: none;
+}
+
+.sensor-pin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #111827;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.55);
+  position: relative;
+  animation: markerGlow 2.2s ease-out infinite;
+}
+
+.sensor-pin__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+}

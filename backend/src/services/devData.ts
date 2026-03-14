@@ -622,6 +622,14 @@ export function createDevReport(payload: Partial<ReportDTO>) {
   return report;
 }
 
+export function deleteDevReport(id: string) {
+  seedDevData();
+  const index = devState.reports.findIndex((r) => r.id === id);
+  if (index === -1) return null;
+  const [removed] = devState.reports.splice(index, 1);
+  return removed;
+}
+
 export function listDevApiKeys(): ApiKeyDTO[] {
   seedDevData();
   return devState.apiKeys;

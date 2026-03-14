@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import "./styles/theme.css";
+import "leaflet/dist/leaflet.css";
 
 // Entry point for the frontend app.
 // This mounts the React app and applies the global theme.
@@ -11,4 +12,3 @@ root.render(
     <App />
   </React.StrictMode>
 );
-
