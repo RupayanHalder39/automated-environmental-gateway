@@ -21,6 +21,20 @@ const app = express();
 // Note: express.json is built-in; we avoid legacy body-parser dependency.
 app.use(express.json({ limit: "2mb" }));
 
+// ---- CORS (dev-friendly) ----
+// Allow the frontend dev server to call the API during local development.
+// Set CORS_ORIGIN to tighten this in production (e.g., https://your-domain.com).
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = process.env.CORS_ORIGIN || "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Purpose: Basic request logging placeholder.
 // Replace with structured logging (pino/winston) in production.
 app.use((req: Request, _res: Response, next: NextFunction) => {
