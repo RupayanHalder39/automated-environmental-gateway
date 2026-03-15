@@ -5,6 +5,7 @@ import sensorRoutes from "./modules/SensorService/sensor.routes";
 import deviceRoutes from "./modules/DeviceService/device.routes";
 import historyRoutes from "./modules/HistoryService/history.routes";
 import ruleRoutes from "./modules/RuleService/rule.routes";
+import locationRoutes from "./modules/LocationService/location.routes";
 import alertRoutes from "./modules/AlertService/alert.routes";
 import anomalyRoutes from "./modules/AnomalyService/anomaly.routes";
 import syncRoutes from "./modules/SyncService/sync.routes";
@@ -65,6 +66,7 @@ app.use("/api/v1", historyRoutes);
 
 // Rules Engine -> RuleService
 app.use("/api/v1", ruleRoutes);
+app.use("/api/v1", locationRoutes);
 
 // Alerts -> AlertService
 app.use("/api/v1", alertRoutes);

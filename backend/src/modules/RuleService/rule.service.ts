@@ -11,13 +11,41 @@ import {
   listDevRules,
   updateDevRule,
 } from "../../services/devData";
+import { normalizeMetric } from "../../utils/ruleMatcher";
 
-function toSensorType(metric: string) {
-  const m = metric.toUpperCase();
-  if (m === "WATERLEVEL" || m === "WATER_LEVEL" || m === "WATER LEVEL") return "WATER_LEVEL";
-  if (m === "TEMPERATURE") return "TEMPERATURE";
-  if (m === "HUMIDITY") return "HUMIDITY";
-  return "AQI";
+function normalizeLocations(locationIds: string[] | undefined, legacyLocation?: string) {
+  if (locationIds && locationIds.length > 0) return locationIds;
+  if (!legacyLocation || legacyLocation === "All" || legacyLocation === "All Locations") return ["all"];
+  return [legacyLocation.toLowerCase().replace(/[^a-z0-9]+/g, "-")];
+}
+
+function normalizeActions(actionIds: string[] | undefined, legacyAction?: string) {
+  if (actionIds && actionIds.length > 0) return actionIds;
+  if (!legacyAction) return ["notification"];
+  if (legacyAction.toLowerCase().includes("warning")) return ["warning"];
+  if (legacyAction.toLowerCase().includes("log")) return ["log"];
+  return ["notification"];
+}
+
+function normalizeConditions(
+  conditions: { metric: string; operator: string; threshold: number }[] | undefined,
+  legacy?: { metric?: string; operator?: string; threshold?: number }
+) {
+  if (conditions && conditions.length > 0) {
+    return conditions.map((condition) => ({
+      metric: normalizeMetric(condition.metric),
+      operator: condition.operator,
+      threshold: Number(condition.threshold),
+    }));
+  }
+  if (!legacy?.metric || !legacy?.operator || typeof legacy?.threshold !== "number") return [];
+  return [
+    {
+      metric: normalizeMetric(legacy.metric),
+      operator: legacy.operator,
+      threshold: Number(legacy.threshold),
+    },
+  ];
 }
 
 export async function listRules(): Promise<RuleDTO[]> {
@@ -26,7 +54,7 @@ export async function listRules(): Promise<RuleDTO[]> {
 
   // Tables: alert_rules, alerts (for lastTriggered)
   const result = await db.query(
-    `SELECT ar.id, ar.name, ar.sensor_type, ar.condition_json, ar.is_active,
+    `SELECT ar.id, ar.name, ar.sensor_type, ar.condition_json, ar.conditions_json, ar.location_ids, ar.action_ids, ar.is_active,
             MAX(a.triggered_at) AS last_triggered
      FROM alert_rules ar
      LEFT JOIN alerts a ON a.rule_id = ar.id
@@ -37,11 +65,13 @@ export async function listRules(): Promise<RuleDTO[]> {
   return (result.rows as any[]).map((row: any) => ({
     id: row.id,
     name: row.name,
-    metric: row.sensor_type,
-    operator: row.condition_json?.op || ">",
-    threshold: Number(row.condition_json?.value || 0),
-    location: row.condition_json?.location || "All Locations",
-    action: row.condition_json?.action || "Trigger Warning",
+    conditions: normalizeConditions(row.conditions_json || row.condition_json?.conditions, {
+      metric: row.sensor_type,
+      operator: row.condition_json?.op || ">",
+      threshold: Number(row.condition_json?.value || 0),
+    }),
+    locationIds: normalizeLocations(row.location_ids || row.condition_json?.location_ids, row.condition_json?.location),
+    actionIds: normalizeActions(row.action_ids || row.condition_json?.action_ids, row.condition_json?.action),
     status: row.is_active ? "active" : "disabled",
     lastTriggered: row.last_triggered ? new Date(row.last_triggered).toISOString() : "Never",
   }));
@@ -52,7 +82,7 @@ export async function getRuleById(id: string): Promise<RuleDTO | null> {
   if (DEV_MODE) return getDevRuleById(id);
 
   const result = await db.query(
-    `SELECT ar.id, ar.name, ar.sensor_type, ar.condition_json, ar.is_active,
+    `SELECT ar.id, ar.name, ar.sensor_type, ar.condition_json, ar.conditions_json, ar.location_ids, ar.action_ids, ar.is_active,
             MAX(a.triggered_at) AS last_triggered
      FROM alert_rules ar
      LEFT JOIN alerts a ON a.rule_id = ar.id
@@ -65,11 +95,13 @@ export async function getRuleById(id: string): Promise<RuleDTO | null> {
   return {
     id: row.id,
     name: row.name,
-    metric: row.sensor_type,
-    operator: row.condition_json?.op || ">",
-    threshold: Number(row.condition_json?.value || 0),
-    location: row.condition_json?.location || "All Locations",
-    action: row.condition_json?.action || "Trigger Warning",
+    conditions: normalizeConditions(row.conditions_json || row.condition_json?.conditions, {
+      metric: row.sensor_type,
+      operator: row.condition_json?.op || ">",
+      threshold: Number(row.condition_json?.value || 0),
+    }),
+    locationIds: normalizeLocations(row.location_ids || row.condition_json?.location_ids, row.condition_json?.location),
+    actionIds: normalizeActions(row.action_ids || row.condition_json?.action_ids, row.condition_json?.action),
     status: row.is_active ? "active" : "disabled",
     lastTriggered: row.last_triggered ? new Date(row.last_triggered).toISOString() : "Never",
   };
@@ -83,30 +115,29 @@ export async function createRule(payload: any): Promise<RuleDTO> {
   const validation = ruleValidator(payload);
   if (!validation.valid) throw new Error(validation.message);
 
-  const sensorType = toSensorType(payload.metric);
+  const conditions = normalizeConditions(payload.conditions);
+  const locationIds = normalizeLocations(payload.locationIds);
+  const actionIds = normalizeActions(payload.actionIds);
   const condition = {
-    op: payload.operator,
-    value: payload.threshold,
-    location: payload.location || "All Locations",
-    action: payload.action || "Trigger Warning",
+    conditions,
+    location_ids: locationIds,
+    action_ids: actionIds,
   };
 
   const result = await db.query(
-    `INSERT INTO alert_rules (name, sensor_type, condition_json, severity, is_active, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+    `INSERT INTO alert_rules (name, sensor_type, condition_json, conditions_json, location_ids, action_ids, severity, is_active, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
      RETURNING *`,
-    [payload.name, sensorType, condition, payload.severity || "MEDIUM"]
+    [payload.name, "MULTI", condition, conditions, locationIds, actionIds, payload.severity || "MEDIUM"]
   );
 
   const row = result.rows[0];
   return {
     id: row.id,
     name: row.name,
-    metric: row.sensor_type,
-    operator: row.condition_json?.op,
-    threshold: Number(row.condition_json?.value || 0),
-    location: row.condition_json?.location || "All Locations",
-    action: row.condition_json?.action || "Trigger Warning",
+    conditions,
+    locationIds,
+    actionIds,
     status: row.is_active ? "active" : "disabled",
     lastTriggered: "Never",
   };
@@ -116,13 +147,14 @@ export async function updateRule(id: string, payload: any): Promise<RuleDTO | nu
   // DEV_MODE: update in-memory rule only.
   if (DEV_MODE) return updateDevRule(id, payload);
 
-  const sensorType = payload.metric ? toSensorType(payload.metric) : undefined;
-  const condition = payload.operator || payload.threshold || payload.location || payload.action
+  const conditions = payload.conditions ? normalizeConditions(payload.conditions) : undefined;
+  const locationIds = payload.locationIds ? normalizeLocations(payload.locationIds) : undefined;
+  const actionIds = payload.actionIds ? normalizeActions(payload.actionIds) : undefined;
+  const condition = payload.conditions || payload.locationIds || payload.actionIds
     ? {
-        op: payload.operator,
-        value: payload.threshold,
-        location: payload.location || "All Locations",
-        action: payload.action || "Trigger Warning",
+        conditions: conditions || [],
+        location_ids: locationIds || ["all"],
+        action_ids: actionIds || ["notification"],
       }
     : undefined;
 
@@ -131,11 +163,14 @@ export async function updateRule(id: string, payload: any): Promise<RuleDTO | nu
      SET name = COALESCE($2, name),
          sensor_type = COALESCE($3, sensor_type),
          condition_json = COALESCE($4, condition_json),
-         is_active = COALESCE($5, is_active),
+         conditions_json = COALESCE($5, conditions_json),
+         location_ids = COALESCE($6, location_ids),
+         action_ids = COALESCE($7, action_ids),
+         is_active = COALESCE($8, is_active),
          updated_at = NOW()
      WHERE id = $1
      RETURNING *`,
-    [id, payload.name, sensorType, condition, payload.is_active]
+    [id, payload.name, payload.sensor_type, condition, conditions, locationIds, actionIds, payload.is_active]
   );
 
   if (!result.rows.length) return null;
@@ -143,11 +178,13 @@ export async function updateRule(id: string, payload: any): Promise<RuleDTO | nu
   return {
     id: row.id,
     name: row.name,
-    metric: row.sensor_type,
-    operator: row.condition_json?.op,
-    threshold: Number(row.condition_json?.value || 0),
-    location: row.condition_json?.location || "All Locations",
-    action: row.condition_json?.action || "Trigger Warning",
+    conditions: normalizeConditions(row.conditions_json || row.condition_json?.conditions, {
+      metric: row.sensor_type,
+      operator: row.condition_json?.op || ">",
+      threshold: Number(row.condition_json?.value || 0),
+    }),
+    locationIds: normalizeLocations(row.location_ids || row.condition_json?.location_ids, row.condition_json?.location),
+    actionIds: normalizeActions(row.action_ids || row.condition_json?.action_ids, row.condition_json?.action),
     status: row.is_active ? "active" : "disabled",
     lastTriggered: "Never",
   };

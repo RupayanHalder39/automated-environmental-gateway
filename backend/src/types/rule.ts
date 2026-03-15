@@ -4,12 +4,13 @@
 export interface RuleDTO {
   id: string;
   name: string;
-  metric: string;
-  operator: string;
-  threshold: number;
-  location: string;
-  action: string;
+  conditions: {
+    metric: string;
+    operator: string;
+    threshold: number;
+  }[];
+  locationIds: string[];
+  actionIds: string[];
   status: "active" | "disabled";
   lastTriggered: string;
 }
-

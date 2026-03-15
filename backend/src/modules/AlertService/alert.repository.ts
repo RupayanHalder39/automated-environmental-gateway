@@ -10,6 +10,7 @@ import {
   triggerDevAlert,
 } from "../../services/devData";
 import { DEV_MODE } from "../../config";
+import { matchesAnyCondition, matchesLocation, normalizeMetric, slugify } from "../../utils/ruleMatcher";
 
 // --- Types ---
 
@@ -137,11 +138,11 @@ export async function createAlertsForReading(payload: {
     if (DEV_MODE) return [triggerDevAlert(payload)];
 
     const { metric, value, deviceCode, sensorCode } = payload;
-    const sensorType = metric.toUpperCase() === "WATERLEVEL" ? "WATER_LEVEL" : metric.toUpperCase();
+    const readingMetric = normalizeMetric(metric);
 
     const [rulesResult, deviceResult, sensorResult] = await Promise.all([
-        db.query(`SELECT * FROM alert_rules WHERE sensor_type = $1 AND is_active = true`, [sensorType]),
-        db.query(`SELECT id, location_name FROM devices WHERE device_code = $1`, [deviceCode]),
+        db.query(`SELECT * FROM alert_rules WHERE is_active = true`),
+        db.query(`SELECT id, location_id, location_name FROM devices WHERE device_code = $1`, [deviceCode]),
         db.query(`SELECT id FROM sensors WHERE sensor_code = $1`, [sensorCode]),
     ]);
 
@@ -152,19 +153,30 @@ export async function createAlertsForReading(payload: {
     const createdAlerts = [];
 
     for (const rule of rules) {
-        const { op, value: threshold, location } = rule.condition_json || {};
+        const conditionJson = rule.condition_json || {};
+        const conditions = Array.isArray(rule.conditions_json)
+            ? rule.conditions_json
+            : Array.isArray(conditionJson.conditions)
+            ? conditionJson.conditions
+            : [{
+                metric: rule.sensor_type || readingMetric,
+                operator: conditionJson.op || ">",
+                threshold: Number(conditionJson.value || 0),
+              }];
+        const locationIds = Array.isArray(rule.location_ids)
+            ? rule.location_ids
+            : Array.isArray(conditionJson.location_ids)
+            ? conditionJson.location_ids
+            : conditionJson.location
+              ? [slugify(conditionJson.location)]
+              : ["all"];
 
-        if (location && location !== "All Locations" && location !== device?.location_name) {
+        const deviceSlug = device?.location_name ? slugify(device.location_name) : null;
+        if (!matchesLocation(locationIds, device?.location_id, deviceSlug)) {
             continue;
         }
 
-        let match = false;
-        switch (op) {
-            case ">": if (value > threshold) match = true; break;
-            case ">=": if (value >= threshold) match = true; break;
-            case "<": if (value < threshold) match = true; break;
-            case "<=": if (value <= threshold) match = true; break;
-        }
+        const match = matchesAnyCondition(conditions, readingMetric, value);
 
         if (match) {
             const insertResult = await db.query(
@@ -177,7 +189,16 @@ export async function createAlertsForReading(payload: {
                     device?.id || null,
                     rule.severity || "MEDIUM",
                     rule.name,
-                    { value: `${metric}: ${value}`, location: device?.location_name },
+                    {
+                      value: `${metric}: ${value}`,
+                      location: device?.location_name,
+                      location_id: device?.location_id || null,
+                      action_ids: Array.isArray(rule.action_ids)
+                        ? rule.action_ids
+                        : Array.isArray(conditionJson.action_ids)
+                          ? conditionJson.action_ids
+                          : undefined,
+                    },
                 ]
             );
             createdAlerts.push(insertResult.rows[0]);

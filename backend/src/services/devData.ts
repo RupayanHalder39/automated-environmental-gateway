@@ -11,11 +11,11 @@ import type { SystemStatusDTO, SystemServiceDTO } from "../types/system";
 import type { ApiKeyDTO } from "../types/apiKey";
 
 const DEV_LOCATIONS = [
-  { name: "Salt Lake", lat: 22.5726, lng: 88.4197 },
-  { name: "New Town", lat: 22.5897, lng: 88.4753 },
-  { name: "Sector V", lat: 22.5726, lng: 88.4324 },
-  { name: "Rajarhat", lat: 22.6208, lng: 88.4504 },
-  { name: "Park Street", lat: 22.5543, lng: 88.3519 },
+  { id: "b7d6a4b2-73f6-4f2d-9d8a-5a4e5bb8e9a1", slug: "salt-lake", name: "Salt Lake", lat: 22.5726, lng: 88.4197 },
+  { id: "b1e6f9a9-b9d8-4d9d-9a0b-2e50c2a6b7dd", slug: "new-town", name: "New Town", lat: 22.5897, lng: 88.4753 },
+  { id: "3c4a45f0-2a83-4c40-9f1e-2f8a8a4d9e6d", slug: "sector-v", name: "Sector V", lat: 22.5726, lng: 88.4324 },
+  { id: "c7d6f2ad-3d6d-4bd7-8a4b-1b3f9e2b4f7a", slug: "rajarhat", name: "Rajarhat", lat: 22.6208, lng: 88.4504 },
+  { id: "6d2b3c5a-12c4-4f2d-9d6e-1a3c5b7d9e8f", slug: "park-street", name: "Park Street", lat: 22.5543, lng: 88.3519 },
 ];
 
 const DEV_DEVICES = ["GW-001", "GW-002", "GW-003", "GW-004", "GW-005"]; 
@@ -34,6 +34,7 @@ type DevSensor = {
   sensorCode: string;
   deviceCode: string;
   location: string;
+  locationId: string;
   lat: number;
   lng: number;
 };
@@ -41,6 +42,7 @@ type DevSensor = {
 type DevDevice = {
   deviceCode: string;
   location: string;
+  locationId: string;
   status: "online" | "offline" | "maintenance";
   lastHeartbeat: string;
   signalStrength: number;
@@ -100,6 +102,7 @@ function seedDevData() {
     return {
       deviceCode,
       location: location.name,
+      locationId: location.id,
       status: "online",
       lastHeartbeat: nowIso(),
       signalStrength: Math.round(randomBetween(65, 98)),
@@ -115,6 +118,7 @@ function seedDevData() {
       sensorCode,
       deviceCode,
       location: location.name,
+      locationId: location.id,
       lat: location.lat,
       lng: location.lng,
     };
@@ -124,22 +128,18 @@ function seedDevData() {
     {
       id: "RULE-001",
       name: "High AQI Alert",
-      metric: "aqi",
-      operator: ">",
-      threshold: 150,
-      location: "All",
-      action: "Send Notification",
+      conditions: [{ metric: "AQI", operator: ">", threshold: 150 }],
+      locationIds: DEV_LOCATIONS.map((loc) => loc.id),
+      actionIds: ["notification"],
       status: "active",
       lastTriggered: "",
     },
     {
       id: "RULE-002",
       name: "Water Level Watch",
-      metric: "waterLevel",
-      operator: ">",
-      threshold: 500,
-      location: "Sector V",
-      action: "Create Alert",
+      conditions: [{ metric: "WATER_LEVEL", operator: ">", threshold: 500 }],
+      locationIds: [DEV_LOCATIONS.find((loc) => loc.slug === "sector-v")?.id || ""].filter(Boolean),
+      actionIds: ["log"],
       status: "active",
       lastTriggered: "",
     },
@@ -221,6 +221,7 @@ function ensureSensor(sensorCode: string) {
     sensorCode,
     deviceCode,
     location: fallbackLocation.name,
+    locationId: fallbackLocation.id,
     lat: fallbackLocation.lat,
     lng: fallbackLocation.lng,
   };
@@ -557,6 +558,10 @@ export function listDevRules(): RuleDTO[] {
   return devState.rules;
 }
 
+export function listDevLocations() {
+  return DEV_LOCATIONS.map(({ id, name, slug }) => ({ id, name, slug }));
+}
+
 export function getDevRuleById(id: string): RuleDTO | null {
   seedDevData();
   return devState.rules.find((r) => r.id === id) || null;
@@ -567,11 +572,9 @@ export function createDevRule(payload: Partial<RuleDTO>) {
   const rule: RuleDTO = {
     id: `RULE-${Date.now()}`,
     name: payload.name || "New Rule",
-    metric: payload.metric || "aqi",
-    operator: payload.operator || ">",
-    threshold: payload.threshold ?? 100,
-    location: payload.location || "All",
-    action: payload.action || "Notify",
+    conditions: payload.conditions || [{ metric: "AQI", operator: ">", threshold: 100 }],
+    locationIds: payload.locationIds || ["all"],
+    actionIds: payload.actionIds || ["notification"],
     status: payload.status || "active",
     lastTriggered: "",
   };
