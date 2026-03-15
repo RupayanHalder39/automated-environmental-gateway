@@ -7,7 +7,7 @@ router.get("/rules", controller.listRules);
 router.get("/rules/:id", controller.getRuleById);
 router.post("/rules", controller.createRule);
 router.patch("/rules/:id", controller.updateRule);
+router.patch("/rules/:id/toggle", controller.toggleRule);
 router.delete("/rules/:id", controller.deleteRule);
 
 export default router;
-

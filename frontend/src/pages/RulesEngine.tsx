@@ -5,8 +5,8 @@ import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Plus, Trash2, Edit, AlertTriangle, Bell } from "lucide-react";
-import { createRule, deleteRule, fetchRules, updateRule } from "../services/ruleService";
+import { Plus, Trash2, Edit, AlertTriangle, Bell, Power } from "lucide-react";
+import { createRule, deleteRule, fetchRules, toggleRule, updateRule } from "../services/ruleService";
 import { EmptyState } from "../components/EmptyState";
 import { fetchLocations } from "../services/locationService";
 import type { LocationDTO } from "../types/location";
@@ -136,15 +136,21 @@ export function RulesEngine() {
     const nextStatus = currentStatus === "active" ? "disabled" : "active";
     setActionBusyId(id);
     setApiError(null);
+    // Optimistic update
+    setRulesList((prev) =>
+      prev.map((rule) => (rule.id === id ? { ...rule, status: nextStatus } : rule))
+    );
     try {
-      const res = await updateRule(id, { status: nextStatus });
+      const res = await toggleRule(id);
       const updated = res.data as Rule | null | undefined;
-      setRulesList((prev) =>
-        prev.map((rule) =>
-          rule.id === id ? (updated || { ...rule, status: nextStatus }) : rule
-        )
-      );
+      if (updated) {
+        setRulesList((prev) => prev.map((rule) => (rule.id === id ? updated : rule)));
+      }
     } catch (err: any) {
+      // Rollback on failure
+      setRulesList((prev) =>
+        prev.map((rule) => (rule.id === id ? { ...rule, status: currentStatus } : rule))
+      );
       setApiError(err.message);
     } finally {
       setActionBusyId(null);
@@ -373,11 +379,19 @@ export function RulesEngine() {
         </div>
         <div className="divide-y divide-zinc-800">
           {rulesList.map((rule) => (
-            <div key={rule.id} className="p-6 hover:bg-zinc-800/50 transition-colors">
+            <div
+              key={rule.id}
+              className={`p-6 hover:bg-zinc-800/50 transition-colors ${rule.status === "disabled" ? "opacity-60" : ""}`}
+            >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold text-zinc-100">{rule.name}</h3>
+                    {rule.status === "disabled" && (
+                      <Badge className="bg-zinc-700 text-zinc-200 border border-zinc-600">
+                        DISABLED
+                      </Badge>
+                    )}
                     <Badge
                       className={
                         rule.status === "active"
@@ -419,11 +433,21 @@ export function RulesEngine() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Switch
-                    checked={rule.status === "active"}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={rule.status === "active" ? "Disable Rule" : "Enable Rule"}
+                    aria-label={rule.status === "active" ? "Disable Rule" : "Enable Rule"}
                     disabled={actionBusyId === rule.id}
-                    onCheckedChange={() => toggleRuleStatus(rule.id, rule.status)}
-                  />
+                    onClick={() => toggleRuleStatus(rule.id, rule.status)}
+                    className={
+                      rule.status === "active"
+                        ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                        : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                    }
+                  >
+                    <Power className="w-4 h-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"

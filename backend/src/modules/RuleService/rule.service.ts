@@ -201,3 +201,37 @@ export async function deleteRule(id: string) {
   );
   return result.rows[0] ?? null;
 }
+
+export async function toggleRule(id: string): Promise<RuleDTO | null> {
+  if (DEV_MODE) {
+    const rule = getDevRuleById(id);
+    if (!rule) return null;
+    const nextStatus = rule.status === "active" ? "disabled" : "active";
+    return updateDevRule(id, { status: nextStatus });
+  }
+
+  const result = await db.query(
+    `UPDATE alert_rules
+     SET is_active = NOT is_active,
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
+
+  if (!result.rows.length) return null;
+  const row = result.rows[0] as any;
+  return {
+    id: row.id,
+    name: row.name,
+    conditions: normalizeConditions(row.conditions_json || row.condition_json?.conditions, {
+      metric: row.sensor_type,
+      operator: row.condition_json?.op || ">",
+      threshold: Number(row.condition_json?.value || 0),
+    }),
+    locationIds: normalizeLocations(row.location_ids || row.condition_json?.location_ids, row.condition_json?.location),
+    actionIds: normalizeActions(row.action_ids || row.condition_json?.action_ids, row.condition_json?.action),
+    status: row.is_active ? "active" : "disabled",
+    lastTriggered: "Never",
+  };
+}

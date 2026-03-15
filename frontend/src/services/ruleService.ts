@@ -19,7 +19,10 @@ export function updateRule(id: string, payload: Partial<RuleDTO>) {
   return apiPatch<ApiResponse<RuleDTO | null>>(`/rules/${id}`, payload);
 }
 
+export function toggleRule(id: string) {
+  return apiPatch<ApiResponse<RuleDTO | null>>(`/rules/${id}/toggle`, {});
+}
+
 export function deleteRule(id: string) {
   return apiPatch<ApiResponse<any>>(`/rules/${id}`, { is_active: false });
 }
-

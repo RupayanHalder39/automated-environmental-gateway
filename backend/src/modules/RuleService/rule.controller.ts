@@ -53,6 +53,18 @@ export async function updateRule(req: Request, res: Response, next: NextFunction
   }
 }
 
+// PATCH /rules/:id/toggle
+export async function toggleRule(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await ruleService.toggleRule(id);
+    const response: ApiResponse<RuleDTO | null> = { data };
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /rules/:id (soft delete)
 export async function deleteRule(req: Request, res: Response, next: NextFunction) {
   try {
@@ -64,4 +76,3 @@ export async function deleteRule(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
-
