@@ -105,8 +105,20 @@ app.use((_req: Request, res: Response) => {
 // ---- Global error handler ----
 // Purpose: Centralize error responses and avoid leaking internal details.
 // This is structured last so any thrown errors bubble here.
+import { NotFoundError } from "./utils/errors";
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   // In production, log err to an error monitoring system.
+  console.error(err); // For development visibility
+
+  if (err instanceof NotFoundError) {
+    return res.status(404).json({
+      error: {
+        code: "NOT_FOUND",
+        message: err.message,
+      },
+    });
+  }
+
   res.status(500).json({
     error: {
       code: "INTERNAL_SERVER_ERROR",
