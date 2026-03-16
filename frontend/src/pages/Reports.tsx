@@ -6,6 +6,8 @@ import { Input } from "../components/ui/input";
 import { FileText, Download, CalendarIcon, TrendingUp, AlertTriangle, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { createReport, deleteReport, downloadReport, fetchReports } from "../services/reportService";
+import { fetchSensors } from "../services/sensorService";
+import type { SensorDTO } from "../types/sensor";
 import { EmptyState } from "../components/EmptyState";
 
 export function Reports() {
@@ -15,6 +17,8 @@ export function Reports() {
   const [apiReports, setApiReports] = useState<any[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sensors, setSensors] = useState<SensorDTO[]>([]);
+  const [sensorsLoading, setSensorsLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -33,6 +37,13 @@ export function Reports() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    fetchSensors(true)
+      .then((res) => setSensors(res.data || []))
+      .catch((err) => setApiError(err.message))
+      .finally(() => setSensorsLoading(false));
+  }, []);
+
   const generatedReports = apiReports;
   const now = new Date();
   const thisMonthCount = generatedReports.filter((report) => {
@@ -43,14 +54,14 @@ export function Reports() {
   }).length;
   const scheduledCount = 0;
   const totalDownloads = downloadCount;
-  const zoneOptions = ["Salt Lake", "New Town", "Sector V", "Rajarhat", "Park Street"];
+  const zoneOptions = Array.from(new Set(sensors.map((sensor) => sensor.location))).sort();
 
   useEffect(() => {
-    if (!didInitZones.current && selectedZones.length === 0) {
+    if (!didInitZones.current && selectedZones.length === 0 && zoneOptions.length > 0) {
       setSelectedZones(zoneOptions);
       didInitZones.current = true;
     }
-  }, [selectedZones.length]);
+  }, [selectedZones.length, zoneOptions.length]);
 
   useEffect(() => {
     return () => {
@@ -71,7 +82,7 @@ export function Reports() {
       const fromLabel = dateFrom ? format(dateFrom, "PP") : "N/A";
       const toLabel = dateTo ? format(dateTo, "PP") : "N/A";
       const zoneLabel =
-        selectedZones.length === zoneOptions.length
+        zoneOptions.length > 0 && selectedZones.length === zoneOptions.length
           ? "All Zones"
           : selectedZones.length === 1
             ? selectedZones[0]

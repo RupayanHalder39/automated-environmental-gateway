@@ -2,20 +2,31 @@
 // This file exists to keep controllers thin and focused on HTTP concerns.
 
 import { db } from "../../utils/db";
-import type { SensorDTO, SensorSummaryDTO } from "../../types/sensor";
+import type {
+  SensorDTO,
+  SensorSummaryDTO,
+  SensorHealthStatus,
+  SensorType,
+} from "../../types/sensor";
 import { DEV_MODE } from "../../config";
 import {
+  createDevSensor,
+  decommissionDevSensor,
+  deleteDevSensor,
   getDevLatestByType,
   getDevSensorById,
   getDevSensorHealth,
   getDevSensorLatest,
   getDevSensorSummary,
   listDevSensors,
+  updateDevSensor,
 } from "../../services/devData";
 
 type SensorQueryRow = {
   sensor_code: string;
   location_name: string;
+  location_id: string | null;
+  sensor_type: string | null;
   latitude: number | null;
   longitude: number | null;
   device_status: string;
@@ -32,9 +43,45 @@ function cmToMeters(value: number | null) {
   return Number((value / 100).toFixed(2));
 }
 
-export async function listSensors(): Promise<SensorDTO[]> {
+function toDeviceStatus(status?: string) {
+  if (!status) return "ACTIVE";
+  if (status === "inactive") return "INACTIVE";
+  if (status === "online") return "ACTIVE";
+  return "OFFLINE";
+}
+
+function deriveHealthStatus(
+  sensorType: SensorType | undefined,
+  row: SensorQueryRow,
+): SensorHealthStatus {
+  if (sensorType === "Temperature") {
+    const temp = row.temperature_c ?? 0;
+    if (temp > 35) return "fault";
+    if (temp > 30) return "warning";
+    return "healthy";
+  }
+  if (sensorType === "Humidity") {
+    const humidity = row.humidity_pct ?? 0;
+    if (humidity > 85) return "fault";
+    if (humidity > 70) return "warning";
+    return "healthy";
+  }
+  if (sensorType === "Water Level") {
+    const waterLevel = row.water_level_cm ?? 0;
+    if (waterLevel > 300) return "fault";
+    if (waterLevel > 200) return "warning";
+    return "healthy";
+  }
+  const aqi = row.aqi ?? 0;
+  if (aqi > 150) return "fault";
+  if (aqi > 100) return "warning";
+  return "healthy";
+}
+
+
+export async function listSensors(includeInactive = false): Promise<SensorDTO[]> {
   // DEV_MODE: return generated sensor list without DB access.
-  if (DEV_MODE) return listDevSensors();
+  if (DEV_MODE) return listDevSensors(includeInactive);
 
   // Returns SensorDTO[] with latest readings for each sensor.
   // Tables: sensors, devices, sensor_readings (latest per sensor).
@@ -42,6 +89,8 @@ export async function listSensors(): Promise<SensorDTO[]> {
     `SELECT DISTINCT ON (s.id)
       s.sensor_code,
       d.location_name,
+      d.location_id,
+      s.sensor_type,
       d.latitude,
       d.longitude,
       d.status AS device_status,
@@ -53,13 +102,17 @@ export async function listSensors(): Promise<SensorDTO[]> {
      FROM sensors s
      JOIN devices d ON d.id = s.device_id
      LEFT JOIN sensor_readings sr ON sr.sensor_id = s.id
-     ORDER BY s.id, sr.recorded_at DESC`
+     WHERE ($1::boolean IS TRUE OR d.status <> 'INACTIVE')
+     ORDER BY s.id, sr.recorded_at DESC`,
+    [includeInactive]
   );
 
   const rows = result.rows as SensorQueryRow[];
   return rows.map((row) => ({
     id: row.sensor_code,
     location: row.location_name,
+    locationId: row.location_id ?? undefined,
+    sensorType: (row.sensor_type as SensorType | null) ?? undefined,
     lat: Number(row.latitude ?? 0),
     lng: Number(row.longitude ?? 0),
     aqi: row.aqi ?? 0,
@@ -67,7 +120,13 @@ export async function listSensors(): Promise<SensorDTO[]> {
     humidity: row.humidity_pct ?? 0,
     waterLevel: cmToMeters(row.water_level_cm) ?? 0,
     lastUpdate: row.recorded_at ? new Date(row.recorded_at).toISOString() : "",
-    status: row.device_status === "ACTIVE" ? "online" : "offline",
+    status:
+      row.device_status === "ACTIVE"
+        ? "online"
+        : row.device_status === "INACTIVE"
+          ? "inactive"
+          : "offline",
+    healthStatus: deriveHealthStatus(row.sensor_type as SensorType | undefined, row),
   }));
 }
 
@@ -81,6 +140,8 @@ export async function getSensorById(id: string): Promise<SensorDTO | null> {
     `SELECT DISTINCT ON (s.id)
       s.sensor_code,
       d.location_name,
+      d.location_id,
+      s.sensor_type,
       d.latitude,
       d.longitude,
       d.status AS device_status,
@@ -102,6 +163,8 @@ export async function getSensorById(id: string): Promise<SensorDTO | null> {
   return {
     id: row.sensor_code,
     location: row.location_name,
+    locationId: row.location_id ?? undefined,
+    sensorType: (row.sensor_type as SensorType | null) ?? undefined,
     lat: Number(row.latitude ?? 0),
     lng: Number(row.longitude ?? 0),
     aqi: row.aqi ?? 0,
@@ -109,7 +172,13 @@ export async function getSensorById(id: string): Promise<SensorDTO | null> {
     humidity: row.humidity_pct ?? 0,
     waterLevel: cmToMeters(row.water_level_cm) ?? 0,
     lastUpdate: row.recorded_at ? new Date(row.recorded_at).toISOString() : "",
-    status: row.device_status === "ACTIVE" ? "online" : "offline",
+    status:
+      row.device_status === "ACTIVE"
+        ? "online"
+        : row.device_status === "INACTIVE"
+          ? "inactive"
+          : "offline",
+    healthStatus: deriveHealthStatus(row.sensor_type as SensorType | undefined, row),
   };
 }
 
@@ -180,13 +249,14 @@ export async function getSensorSummary(range?: string): Promise<SensorSummaryDTO
   const counts = await db.query(
     `SELECT
        SUM(CASE WHEN d.status = 'ACTIVE' THEN 1 ELSE 0 END) AS online,
-       SUM(CASE WHEN d.status <> 'ACTIVE' THEN 1 ELSE 0 END) AS offline
+       SUM(CASE WHEN d.status = 'INACTIVE' THEN 0 ELSE 1 END) AS active_total,
+       SUM(CASE WHEN d.status <> 'ACTIVE' AND d.status <> 'INACTIVE' THEN 1 ELSE 0 END) AS offline
      FROM sensors s
      JOIN devices d ON d.id = s.device_id`
   );
 
   return {
-    totalSensors: Number(result.rows[0]?.total_sensors || 0),
+    totalSensors: Number(counts.rows[0]?.active_total || 0),
     onlineSensors: Number(counts.rows[0]?.online || 0),
     offlineSensors: Number(counts.rows[0]?.offline || 0),
     averageAqi: Number(result.rows[0]?.avg_aqi || 0),
@@ -203,7 +273,7 @@ export async function getSensorHealth() {
   const result = await db.query(
     `SELECT
        SUM(CASE WHEN d.status = 'ACTIVE' THEN 1 ELSE 0 END) AS online,
-       SUM(CASE WHEN d.status <> 'ACTIVE' THEN 1 ELSE 0 END) AS offline
+       SUM(CASE WHEN d.status <> 'ACTIVE' AND d.status <> 'INACTIVE' THEN 1 ELSE 0 END) AS offline
      FROM sensors s
      JOIN devices d ON d.id = s.device_id`
   );
@@ -211,4 +281,138 @@ export async function getSensorHealth() {
     online: Number(result.rows[0]?.online || 0),
     offline: Number(result.rows[0]?.offline || 0),
   };
+}
+
+export async function createSensor(payload: {
+  id: string;
+  locationId: string;
+  sensorType: SensorType;
+  status?: "online" | "offline" | "inactive";
+}): Promise<SensorDTO> {
+  if (DEV_MODE) return createDevSensor(payload);
+
+  const existing = await db.query(`SELECT 1 FROM sensors WHERE sensor_code = $1`, [payload.id]);
+  if (existing.rows.length > 0) {
+    throw new Error("Sensor ID already exists");
+  }
+
+  const locationResult = await db.query(`SELECT name FROM locations WHERE id = $1`, [payload.locationId]);
+  if (!locationResult.rows.length) {
+    throw new Error("Invalid location");
+  }
+  const locationName = locationResult.rows[0].name as string;
+
+  const deviceStatus = toDeviceStatus(payload.status);
+  const deviceResult = await db.query(
+    `INSERT INTO devices (device_code, name, location_name, location_id, status, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+     RETURNING id`,
+    [payload.id, `Device ${payload.id}`, locationName, payload.locationId, deviceStatus]
+  );
+  const deviceId = deviceResult.rows[0].id;
+
+  await db.query(
+    `INSERT INTO sensors (sensor_code, device_id, sensor_type, created_at, updated_at)
+     VALUES ($1, $2, $3, NOW(), NOW())`,
+    [payload.id, deviceId, payload.sensorType || "AQI"]
+  );
+
+  const created = await getSensorById(payload.id);
+  if (!created) throw new Error("Sensor creation failed");
+  return created;
+}
+
+export async function updateSensor(
+  id: string,
+  payload: {
+    locationId?: string;
+    sensorType?: SensorType;
+    status?: "online" | "offline" | "inactive";
+  }
+): Promise<SensorDTO | null> {
+  if (DEV_MODE) return updateDevSensor(id, payload);
+
+  const deviceResult = await db.query(
+    `SELECT d.id AS device_id
+     FROM sensors s
+     JOIN devices d ON d.id = s.device_id
+     WHERE s.sensor_code = $1`,
+    [id]
+  );
+  if (!deviceResult.rows.length) return null;
+  const deviceId = deviceResult.rows[0].device_id as number;
+
+  if (payload.locationId) {
+    const locationResult = await db.query(`SELECT name FROM locations WHERE id = $1`, [payload.locationId]);
+    if (!locationResult.rows.length) {
+      throw new Error("Invalid location");
+    }
+    const locationName = locationResult.rows[0].name as string;
+    await db.query(
+      `UPDATE devices
+       SET location_id = $1,
+           location_name = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [payload.locationId, locationName, deviceId]
+    );
+  }
+
+  if (payload.status) {
+    await db.query(
+      `UPDATE devices
+       SET status = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [toDeviceStatus(payload.status), deviceId]
+    );
+  }
+
+  if (payload.sensorType) {
+    await db.query(
+      `UPDATE sensors
+       SET sensor_type = $1,
+           updated_at = NOW()
+       WHERE sensor_code = $2`,
+      [payload.sensorType, id]
+    );
+  }
+
+  return getSensorById(id);
+}
+
+export async function decommissionSensor(id: string): Promise<SensorDTO | null> {
+  if (DEV_MODE) {
+    const existing = await getDevSensorById(id);
+    if (existing?.status === "inactive") return deleteDevSensor(id);
+    return decommissionDevSensor(id);
+  }
+
+  const statusResult = await db.query(
+    `SELECT d.id, d.status
+     FROM sensors s
+     JOIN devices d ON d.id = s.device_id
+     WHERE s.sensor_code = $1`,
+    [id]
+  );
+  if (!statusResult.rows.length) return null;
+
+  const deviceId = statusResult.rows[0].id as number;
+  const currentStatus = statusResult.rows[0].status as string;
+
+  if (currentStatus === "INACTIVE") {
+    await db.query(`DELETE FROM sensor_readings WHERE sensor_id = (SELECT id FROM sensors WHERE sensor_code = $1)`, [id]);
+    await db.query(`DELETE FROM sensors WHERE sensor_code = $1`, [id]);
+    await db.query(`DELETE FROM devices WHERE id = $1`, [deviceId]);
+    return null;
+  }
+
+  await db.query(
+    `UPDATE devices
+     SET status = 'INACTIVE',
+         updated_at = NOW()
+     WHERE id = $1`,
+    [deviceId]
+  );
+  return getSensorById(id);
 }

@@ -4,35 +4,38 @@ import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { RefreshCw, MapPin, Thermometer, Droplets, Waves, Clock } from "lucide-react";
+import { RefreshCw, MapPin, Thermometer, Clock, Activity } from "lucide-react";
 import { fetchSensors } from "../services/sensorService";
 import { EmptyState } from "../components/EmptyState";
+import type { SensorDTO } from "../types/sensor";
 
-interface Sensor {
-  id: string;
-  location: string;
-  lat: number;
-  lng: number;
-  aqi: number;
-  temperature: number;
-  humidity: number;
-  waterLevel: number;
-  lastUpdate: string;
-  status: "online" | "offline";
+function getHealthColor(sensor: SensorDTO) {
+  if (sensor.status === "inactive") {
+    return { bg: "bg-zinc-500", text: "text-zinc-300", label: "Inactive" };
+  }
+  if (sensor.healthStatus === "fault") return { bg: "bg-red-500", text: "text-red-400", label: "Fault" };
+  if (sensor.healthStatus === "warning") return { bg: "bg-amber-500", text: "text-amber-400", label: "Warning" };
+  return { bg: "bg-emerald-500", text: "text-emerald-400", label: "Healthy" };
 }
 
+function formatCurrentValue(sensor: SensorDTO) {
+  if (sensor.sensorType === "Temperature") return `${sensor.temperature}°C`;
+  if (sensor.sensorType === "Humidity") return `${sensor.humidity}%`;
+  if (sensor.sensorType === "Water Level") return `${sensor.waterLevel}m`;
+  return `${sensor.aqi}`;
+}
 
-function getAQIColor(aqi: number) {
-  if (aqi <= 50) return { bg: "bg-emerald-500", text: "text-emerald-500", label: "Good" };
-  if (aqi <= 100) return { bg: "bg-yellow-500", text: "text-yellow-500", label: "Moderate" };
-  if (aqi <= 150) return { bg: "bg-orange-500", text: "text-orange-500", label: "Poor" };
-  return { bg: "bg-red-500", text: "text-red-500", label: "Dangerous" };
+function currentValueLabel(sensor: SensorDTO) {
+  if (sensor.sensorType === "Temperature") return "Temperature";
+  if (sensor.sensorType === "Humidity") return "Humidity";
+  if (sensor.sensorType === "Water Level") return "Water Level";
+  return "AQI";
 }
 
 export function Dashboard() {
-  const [selectedSensor, setSelectedSensor] = useState<Sensor | null>(null);
+  const [selectedSensor, setSelectedSensor] = useState<SensorDTO | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [apiSensors, setApiSensors] = useState<Sensor[]>([]);
+  const [apiSensors, setApiSensors] = useState<SensorDTO[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -53,9 +56,10 @@ export function Dashboard() {
   };
 
   const sensors = apiSensors;
+  const aqiSensors = sensors.filter((sensor) => sensor.sensorType === "AQI");
   const avgAqi =
-    sensors.length > 0
-      ? Math.round(sensors.reduce((sum, s) => sum + s.aqi, 0) / sensors.length)
+    aqiSensors.length > 0
+      ? Math.round(aqiSensors.reduce((sum, s) => sum + s.aqi, 0) / aqiSensors.length)
       : 0;
 
   const mapMarkers = useMemo(
@@ -87,15 +91,15 @@ export function Dashboard() {
     if (markersLayerRef.current) {
       markersLayerRef.current.clearLayers();
       mapMarkers.forEach((sensor) => {
-        const aqiColor = getAQIColor(sensor.aqi);
+        const healthColor = getHealthColor(sensor);
         const color =
-          aqiColor.bg === "bg-emerald-500"
+          healthColor.bg === "bg-emerald-500"
             ? "#10b981"
-            : aqiColor.bg === "bg-yellow-500"
+            : healthColor.bg === "bg-amber-500"
               ? "#f59e0b"
-              : aqiColor.bg === "bg-orange-500"
-                ? "#f97316"
-                : "#ef4444";
+              : healthColor.bg === "bg-red-500"
+                ? "#ef4444"
+                : "#71717a";
 
         const iconHtml = `
           <div class=\"sensor-pin\">
@@ -111,7 +115,7 @@ export function Dashboard() {
             iconAnchor: [14, 28],
           }),
         }).bindPopup(
-          `<strong>${sensor.location}</strong><br/>AQI: ${sensor.aqi}<br/>Temp: ${sensor.temperature}°C`
+          `<strong>${sensor.location}</strong><br/>${currentValueLabel(sensor)}: ${formatCurrentValue(sensor)}`
         );
 
         marker.on("click", () => setSelectedSensor(sensor));
@@ -184,7 +188,10 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-500 uppercase tracking-wide">Avg AQI</p>
-              <p className="text-2xl font-bold text-yellow-400 mt-1">{avgAqi}</p>
+              <p className="text-2xl font-bold text-yellow-400 mt-1">{aqiSensors.length > 0 ? avgAqi : "--"}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">
+                {aqiSensors.length > 0 ? `${aqiSensors.length} AQI sensors` : "No AQI sensors"}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
               <Thermometer className="w-6 h-6 text-yellow-400" />
@@ -229,22 +236,22 @@ export function Dashboard() {
 
               {/* Legend */}
               <div className="absolute top-4 right-4 bg-zinc-900/80 backdrop-blur px-3 py-2 rounded-lg border border-zinc-700 space-y-1 pointer-events-auto">
-                <p className="text-xs font-semibold text-zinc-300 mb-2">AQI Status</p>
+                <p className="text-xs font-semibold text-zinc-300 mb-2">Health Status</p>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                  <span className="text-xs text-zinc-400">Good (0-50)</span>
+                  <span className="text-xs text-zinc-400">Healthy</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                  <span className="text-xs text-zinc-400">Moderate (51-100)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                  <span className="text-xs text-zinc-400">Poor (101-150)</span>
+                  <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                  <span className="text-xs text-zinc-400">Warning</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-xs text-zinc-400">Dangerous (151+)</span>
+                  <span className="text-xs text-zinc-400">Fault</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-zinc-500 rounded-full"></div>
+                  <span className="text-xs text-zinc-400">Inactive</span>
                 </div>
               </div>
             </div>
@@ -258,7 +265,7 @@ export function Dashboard() {
           </div>
           <div className="p-4 space-y-3 overflow-y-auto" style={{ maxHeight: "600px" }}>
             {sensors.map((sensor) => {
-              const aqiColor = getAQIColor(sensor.aqi);
+              const healthColor = getHealthColor(sensor);
               return (
                 <div
                   key={sensor.id}
@@ -267,23 +274,19 @@ export function Dashboard() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 ${aqiColor.bg} rounded-full`}></div>
+                      <div className={`w-2 h-2 ${healthColor.bg} rounded-full`}></div>
                       <span className="text-sm font-medium text-zinc-100">{sensor.location}</span>
                     </div>
                     <Badge className="bg-zinc-700 text-zinc-300 text-xs">{sensor.id}</Badge>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-400">AQI</span>
-                      <span className={`font-medium ${aqiColor.text}`}>{sensor.aqi}</span>
+                      <span className="text-zinc-400">{currentValueLabel(sensor)}</span>
+                      <span className={`font-medium ${healthColor.text}`}>{formatCurrentValue(sensor)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-400">Temperature</span>
-                      <span className="text-zinc-300">{sensor.temperature}°C</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-400">Humidity</span>
-                      <span className="text-zinc-300">{sensor.humidity}%</span>
+                      <span className="text-zinc-500">Health</span>
+                      <span className="text-zinc-300">{sensor.healthStatus || "healthy"}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 mt-2 text-xs text-zinc-500">
@@ -323,37 +326,11 @@ export function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <Card className="bg-zinc-800 border-zinc-700 p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-3 h-3 ${getAQIColor(selectedSensor.aqi).bg} rounded-full`}></div>
-                    <p className="text-xs text-zinc-400">Air Quality Index</p>
+                    <Activity className="w-3 h-3 text-emerald-400" />
+                    <p className="text-xs text-zinc-400">{currentValueLabel(selectedSensor)}</p>
                   </div>
-                  <p className={`text-2xl font-bold ${getAQIColor(selectedSensor.aqi).text}`}>
-                    {selectedSensor.aqi}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-1">{getAQIColor(selectedSensor.aqi).label}</p>
-                </Card>
-
-                <Card className="bg-zinc-800 border-zinc-700 p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Thermometer className="w-3 h-3 text-orange-400" />
-                    <p className="text-xs text-zinc-400">Temperature</p>
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">{selectedSensor.temperature}°C</p>
-                </Card>
-
-                <Card className="bg-zinc-800 border-zinc-700 p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Droplets className="w-3 h-3 text-blue-400" />
-                    <p className="text-xs text-zinc-400">Humidity</p>
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">{selectedSensor.humidity}%</p>
-                </Card>
-
-                <Card className="bg-zinc-800 border-zinc-700 p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Waves className="w-3 h-3 text-cyan-400" />
-                    <p className="text-xs text-zinc-400">Water Level</p>
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">{selectedSensor.waterLevel}m</p>
+                  <p className="text-2xl font-bold text-zinc-100">{formatCurrentValue(selectedSensor)}</p>
+                  <p className="text-xs text-zinc-500 mt-1">Type: {selectedSensor.sensorType || "AQI"}</p>
                 </Card>
               </div>
 

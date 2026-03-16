@@ -1,7 +1,13 @@
 // Dev data generator and in-memory store for DEV_MODE=true.
 // This keeps frontend screens functional without a live sensor pipeline or DB.
 
-import type { SensorDTO, SensorSummaryDTO } from "../types/sensor";
+import type {
+  SensorDTO,
+  SensorSummaryDTO,
+  SensorType,
+  SensorAssetMetadata,
+  SensorHealthStatus,
+} from "../types/sensor";
 import type { DeviceDTO, DeviceHealthSummaryDTO } from "../types/device";
 import type { AlertDTO, AlertSummaryDTO } from "../types/alert";
 import type { AnomalyDTO, AnomalySummaryDTO } from "../types/anomaly";
@@ -20,6 +26,7 @@ const DEV_LOCATIONS = [
 
 const DEV_DEVICES = ["GW-001", "GW-002", "GW-003", "GW-004", "GW-005"]; 
 const DEV_SENSORS = ["SEN-001", "SEN-002", "SEN-003", "SEN-004", "SEN-005"]; 
+const DEV_SENSOR_TYPES: SensorType[] = ["AQI", "Temperature", "Humidity", "Water Level", "AQI"];
 
 type DevReading = {
   sensorCode: string;
@@ -28,6 +35,7 @@ type DevReading = {
   temperature: number;
   humidity: number;
   waterLevelCm: number;
+  metadata?: SensorAssetMetadata;
 };
 
 type DevSensor = {
@@ -37,6 +45,7 @@ type DevSensor = {
   locationId: string;
   lat: number;
   lng: number;
+  sensorType: SensorType;
 };
 
 type DevDevice = {
@@ -56,6 +65,7 @@ type DevState = {
   devices: DevDevice[];
   readingsBySensor: Map<string, DevReading>;
   historyBySensor: Map<string, DevReading[]>;
+  sensorMetadata: Map<string, SensorAssetMetadata>;
   alerts: AlertDTO[];
   anomalies: AnomalyDTO[];
   rules: RuleDTO[];
@@ -72,6 +82,7 @@ const devState: DevState = {
   devices: [],
   readingsBySensor: new Map(),
   historyBySensor: new Map(),
+  sensorMetadata: new Map(),
   alerts: [],
   anomalies: [],
   rules: [],
@@ -92,6 +103,90 @@ function clamp(value: number, min: number, max: number) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sensorTypeForIndex(index: number): SensorType {
+  return DEV_SENSOR_TYPES[index % DEV_SENSOR_TYPES.length];
+}
+
+function deriveHealthStatus(sensorType: SensorType, reading: DevReading): SensorHealthStatus {
+  if (sensorType === "AQI") {
+    if (reading.aqi > 150) return "fault";
+    if (reading.aqi > 100) return "warning";
+    return "healthy";
+  }
+  if (sensorType === "Temperature") {
+    if (reading.temperature > 35) return "fault";
+    if (reading.temperature > 30) return "warning";
+    return "healthy";
+  }
+  if (sensorType === "Humidity") {
+    if (reading.humidity > 85) return "fault";
+    if (reading.humidity > 70) return "warning";
+    return "healthy";
+  }
+  if (reading.waterLevelCm > 300) return "fault";
+  if (reading.waterLevelCm > 200) return "warning";
+  return "healthy";
+}
+
+function devSensorMetadata(sensorCode: string, sensorType: SensorType): SensorAssetMetadata {
+  const versionSeed = Number(sensorCode.replace(/\D/g, "")) % 10;
+  const firmwareMajor = 1 + (versionSeed % 3);
+  const firmwareMinor = 1 + (versionSeed % 5);
+  const firmwarePatch = versionSeed;
+  const hardwareMetadata = {
+    model: `EG-${sensorType.replace(" ", "-")}-${100 + versionSeed}`,
+    batch: `B-${2026 - (versionSeed % 2)}-${String(versionSeed).padStart(2, "0")}`,
+  };
+  const base = {
+    firmware: `v${firmwareMajor}.${firmwareMinor}.${firmwarePatch}`,
+    lastCalibration: new Date(Date.now() - (versionSeed + 3) * 86400000).toISOString(),
+    hardwareMetadata,
+  };
+
+  if (sensorType === "AQI") {
+    return {
+      ...base,
+      typeDetails: {
+        aqi: {
+          fan_rpm: 1500 + versionSeed * 90,
+          laser_health_percent: 85 + (versionSeed % 10),
+        },
+      },
+    };
+  }
+  if (sensorType === "Temperature") {
+    return {
+      ...base,
+      typeDetails: {
+        temperature: {
+          thermal_drift_rate: Number((0.05 + (versionSeed % 5) * 0.03).toFixed(2)),
+          probe_type: versionSeed % 2 === 0 ? "Internal" : "External",
+        },
+      },
+    };
+  }
+  if (sensorType === "Humidity") {
+    return {
+      ...base,
+      typeDetails: {
+        humidity: {
+          heater_status: versionSeed % 2 === 0,
+          saturation_risk_level: versionSeed % 3 === 0 ? "high" : versionSeed % 3 === 1 ? "medium" : "low",
+        },
+      },
+    };
+  }
+  return {
+    ...base,
+    typeDetails: {
+      waterLevel: {
+        echo_quality_db: 28 + versionSeed * 2,
+        mounting_offset_mm: 12 + versionSeed * 4,
+      },
+    },
+  };
 }
 
 function seedDevData() {
@@ -119,6 +214,7 @@ function seedDevData() {
       deviceCode,
       location: location.name,
       locationId: location.id,
+      sensorType: sensorTypeForIndex(index),
       lat: location.lat,
       lng: location.lng,
     };
@@ -217,6 +313,8 @@ function ensureSensor(sensorCode: string) {
   if (existing) return existing;
   const fallbackLocation = DEV_LOCATIONS[devState.sensors.length % DEV_LOCATIONS.length];
   const deviceCode = DEV_DEVICES[devState.sensors.length % DEV_DEVICES.length];
+  const numericId = Number(sensorCode.replace(/\D/g, "")) || devState.sensors.length;
+  const sensorType = sensorTypeForIndex(Math.max(0, numericId - 1));
   const sensor: DevSensor = {
     sensorCode,
     deviceCode,
@@ -224,6 +322,7 @@ function ensureSensor(sensorCode: string) {
     locationId: fallbackLocation.id,
     lat: fallbackLocation.lat,
     lng: fallbackLocation.lng,
+    sensorType,
   };
   devState.sensors.push(sensor);
   return sensor;
@@ -245,6 +344,7 @@ export function ingestDevReadings(readings: Partial<DevReading>[]) {
       temperature: Number((reading.temperature ?? current?.temperature ?? randomBetween(22, 35)).toFixed(1)),
       humidity: Math.round(reading.humidity ?? current?.humidity ?? randomBetween(45, 85)),
       waterLevelCm: Math.round(reading.waterLevelCm ?? current?.waterLevelCm ?? randomBetween(80, 320)),
+      metadata: reading.metadata ?? current?.metadata,
     };
 
     devState.readingsBySensor.set(sensor.sensorCode, next);
@@ -252,6 +352,10 @@ export function ingestDevReadings(readings: Partial<DevReading>[]) {
     const history = devState.historyBySensor.get(sensor.sensorCode) || [];
     history.unshift(next);
     devState.historyBySensor.set(sensor.sensorCode, history.slice(0, 500));
+
+    if (next.metadata) {
+      devState.sensorMetadata.set(sensor.sensorCode, next.metadata);
+    }
 
     const device = devState.devices.find((d) => d.deviceCode === sensor.deviceCode);
     if (device) {
@@ -281,13 +385,31 @@ export function ingestDevReadings(readings: Partial<DevReading>[]) {
   return { inserted: inserted.length, failed: readings.length - inserted.length };
 }
 
-export function listDevSensors(): SensorDTO[] {
+export function listDevSensors(includeInactive = false): SensorDTO[] {
   seedDevData();
-  return devState.sensors.map((sensor) => {
+  return devState.sensors
+    .filter((sensor) => {
+      const device = devState.devices.find((d) => d.deviceCode === sensor.deviceCode);
+      if (!device) return true;
+      if (!includeInactive && device.status === "maintenance") return false;
+      return true;
+    })
+    .map((sensor) => {
     const reading = devState.readingsBySensor.get(sensor.sensorCode) || generateReading(sensor.sensorCode);
+    const device = devState.devices.find((d) => d.deviceCode === sensor.deviceCode);
+    const status =
+      device?.status === "maintenance"
+        ? "inactive"
+        : device?.status === "online"
+          ? "online"
+          : "offline";
+    const healthStatus = deriveHealthStatus(sensor.sensorType, reading);
+    const metadata = devState.sensorMetadata.get(sensor.sensorCode);
     return {
       id: sensor.sensorCode,
       location: sensor.location,
+      locationId: sensor.locationId,
+      sensorType: sensor.sensorType,
       lat: sensor.lat,
       lng: sensor.lng,
       aqi: reading.aqi,
@@ -295,14 +417,118 @@ export function listDevSensors(): SensorDTO[] {
       humidity: reading.humidity,
       waterLevel: Number((reading.waterLevelCm / 100).toFixed(2)),
       lastUpdate: reading.recordedAt,
-      status: "online",
+      status,
+      healthStatus,
+      metadata,
     };
   });
 }
 
 export function getDevSensorById(id: string): SensorDTO | null {
-  const sensor = listDevSensors().find((s) => s.id === id);
+  const sensor = listDevSensors(true).find((s) => s.id === id);
   return sensor || null;
+}
+
+export function createDevSensor(payload: {
+  id: string;
+  locationId: string;
+  sensorType: SensorType;
+  status?: "online" | "offline" | "inactive";
+  metadata?: SensorAssetMetadata;
+}) {
+  seedDevData();
+  const exists = devState.sensors.find((s) => s.sensorCode === payload.id);
+  if (exists) throw new Error("Sensor ID already exists");
+  const location = DEV_LOCATIONS.find((loc) => loc.id === payload.locationId) || DEV_LOCATIONS[0];
+  const deviceCode = payload.id;
+  const sensor: DevSensor = {
+    sensorCode: payload.id,
+    deviceCode,
+    location: location.name,
+    locationId: location.id,
+    lat: location.lat,
+    lng: location.lng,
+    sensorType: payload.sensorType || "AQI",
+  };
+  devState.sensors.push(sensor);
+  devState.devices.push({
+    deviceCode,
+    location: location.name,
+    locationId: location.id,
+    status: payload.status === "inactive" ? "maintenance" : payload.status === "offline" ? "offline" : "online",
+    lastHeartbeat: nowIso(),
+    signalStrength: Math.round(randomBetween(65, 98)),
+    batteryLevel: Math.round(randomBetween(40, 100)),
+    maintenance: payload.status === "inactive",
+  });
+  devState.readingsBySensor.set(payload.id, generateReading(payload.id));
+  if (payload.metadata) {
+    devState.sensorMetadata.set(payload.id, payload.metadata);
+  }
+  return getDevSensorById(payload.id)!;
+}
+
+export function updateDevSensor(
+  id: string,
+  payload: {
+    locationId?: string;
+    sensorType?: SensorType;
+    status?: "online" | "offline" | "inactive";
+    metadata?: SensorAssetMetadata;
+  }
+) {
+  seedDevData();
+  const sensor = devState.sensors.find((s) => s.sensorCode === id);
+  if (!sensor) return null;
+  if (payload.sensorType) sensor.sensorType = payload.sensorType;
+  if (payload.metadata) {
+    devState.sensorMetadata.set(id, payload.metadata);
+  }
+  if (payload.locationId) {
+    const location = DEV_LOCATIONS.find((loc) => loc.id === payload.locationId);
+    if (location) {
+      sensor.location = location.name;
+      sensor.locationId = location.id;
+      sensor.lat = location.lat;
+      sensor.lng = location.lng;
+      const device = devState.devices.find((d) => d.deviceCode === sensor.deviceCode);
+      if (device) {
+        device.location = location.name;
+        device.locationId = location.id;
+      }
+    }
+  }
+  if (payload.status) {
+    const device = devState.devices.find((d) => d.deviceCode === sensor.deviceCode);
+    if (device) {
+      device.status = payload.status === "inactive" ? "maintenance" : payload.status === "offline" ? "offline" : "online";
+      device.maintenance = payload.status === "inactive";
+    }
+  }
+  return getDevSensorById(id);
+}
+
+export function decommissionDevSensor(id: string) {
+  seedDevData();
+  const device = devState.devices.find((d) => d.deviceCode === id);
+  if (device) {
+    device.status = "maintenance";
+    device.maintenance = true;
+  }
+  return getDevSensorById(id);
+}
+
+export function deleteDevSensor(id: string) {
+  seedDevData();
+  const device = devState.devices.find((d) => d.deviceCode === id);
+  if (device && device.status !== "maintenance") {
+    throw new Error("Only inactive sensors can be deleted");
+  }
+  devState.sensors = devState.sensors.filter((s) => s.sensorCode !== id);
+  devState.devices = devState.devices.filter((d) => d.deviceCode !== id);
+  devState.readingsBySensor.delete(id);
+  devState.historyBySensor.delete(id);
+  return null;
 }
 
 export function getDevSensorLatest(id: string) {
@@ -352,8 +578,10 @@ export function getDevSensorSummary(): SensorSummaryDTO {
 
 export function getDevSensorHealth() {
   seedDevData();
-  const total = devState.sensors.length;
-  return { online: total, offline: 0 };
+  const sensors = listDevSensors();
+  const online = sensors.filter((s) => s.status === "online").length;
+  const offline = sensors.filter((s) => s.status === "offline").length;
+  return { online, offline };
 }
 
 export function listDevDevices(): DeviceDTO[] {
@@ -432,29 +660,81 @@ export function getDevHistoryReadings(sensorId: string, page: number, pageSize: 
   return { rows, total, page, pageSize };
 }
 
-export function getDevHistoryAggregate(metric?: string) {
+export function getDevHistoryAggregate(query?: {
+  metric?: string;
+  from?: string;
+  to?: string;
+  interval?: string;
+  location?: string;
+}) {
   seedDevData();
-  const metricKey = metric || "aqi";
-  const points: Record<string, any> = {};
+  const metricKey = query?.metric || "aqi";
+  const interval = query?.interval || "1h";
+  const fromDate = query?.from ? new Date(query.from) : null;
+  const toDate = query?.to ? new Date(query.to) : null;
+  const locationFilter = query?.location;
 
-  devState.sensors.forEach((sensor) => {
-    const history = devState.historyBySensor.get(sensor.sensorCode) || [];
-    history.slice(0, 24).forEach((entry) => {
-      const dateKey = entry.recordedAt;
-      if (!points[dateKey]) points[dateKey] = { date: dateKey };
-      const value =
-        metricKey === "temperature"
-          ? entry.temperature
-          : metricKey === "humidity"
-            ? entry.humidity
-            : metricKey === "waterLevel"
-              ? entry.waterLevelCm
-              : entry.aqi;
-      points[dateKey][sensor.location] = value;
+  const sensorTypeForMetric: Record<string, SensorType> = {
+    aqi: "AQI",
+    temperature: "Temperature",
+    humidity: "Humidity",
+    waterLevel: "Water Level",
+  };
+  const expectedType = sensorTypeForMetric[metricKey] || "AQI";
+
+  const bucketType = interval.includes("day")
+    ? "day"
+    : interval.includes("hour") || interval.includes("h")
+      ? "hour"
+      : "hour";
+
+  const points: Record<string, { date: string; values: Record<string, { sum: number; count: number }> }> = {};
+
+  devState.sensors
+    .filter((sensor) => sensor.sensorType === expectedType)
+    .filter((sensor) => !locationFilter || sensor.location === locationFilter)
+    .forEach((sensor) => {
+      const history = devState.historyBySensor.get(sensor.sensorCode) || [];
+      history.forEach((entry) => {
+        const entryDate = new Date(entry.recordedAt);
+        if (fromDate && entryDate < fromDate) return;
+        if (toDate && entryDate > toDate) return;
+
+        const bucket = new Date(entryDate);
+        if (bucketType === "day") {
+          bucket.setHours(0, 0, 0, 0);
+        } else {
+          bucket.setMinutes(0, 0, 0);
+        }
+        const dateKey = bucket.toISOString();
+        if (!points[dateKey]) {
+          points[dateKey] = { date: dateKey, values: {} };
+        }
+        if (!points[dateKey].values[sensor.location]) {
+          points[dateKey].values[sensor.location] = { sum: 0, count: 0 };
+        }
+        const value =
+          metricKey === "temperature"
+            ? entry.temperature
+            : metricKey === "humidity"
+              ? entry.humidity
+              : metricKey === "waterLevel"
+                ? entry.waterLevelCm
+                : entry.aqi;
+        points[dateKey].values[sensor.location].sum += Number(value);
+        points[dateKey].values[sensor.location].count += 1;
+      });
     });
-  });
 
-  return Object.values(points).slice(0, 30);
+  return Object.values(points)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((entry) => {
+      const row: Record<string, any> = { date: entry.date };
+      Object.entries(entry.values).forEach(([locationName, agg]) => {
+        row[locationName] = agg.count > 0 ? agg.sum / agg.count : 0;
+      });
+      return row;
+    });
 }
 
 export function getDevDeviceAggregate(id: string) {
@@ -682,7 +962,7 @@ export function getDevPublicAqi() {
 }
 
 export function getDevPublicHistorical(metric: string) {
-  return getDevHistoryAggregate(metric);
+  return getDevHistoryAggregate({ metric });
 }
 
 export function getDevSystemStatus(): SystemStatusDTO {

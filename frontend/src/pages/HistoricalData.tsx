@@ -6,6 +6,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { fetchHistoryAggregate } from "../services/historyService";
+import { fetchSensors } from "../services/sensorService";
+import type { SensorDTO, SensorType } from "../types/sensor";
 import { useAppState } from "../utils/AppState";
 import { EmptyState } from "../components/EmptyState";
 
@@ -24,6 +26,8 @@ export function HistoricalData() {
   const [apiChartData, setApiChartData] = useState<any[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sensors, setSensors] = useState<SensorDTO[]>([]);
+  const [sensorsLoading, setSensorsLoading] = useState(true);
 
   const daysMap: Record<string, number> = {
     "24hours": 1,
@@ -33,25 +37,42 @@ export function HistoricalData() {
 
   const chartData = apiChartData;
 
-  const fallbackLocations = ["Salt Lake", "New Town", "Sector V", "Rajarhat", "Park Street"];
+  const metricToSensorType: Record<MetricType, SensorType> = {
+    aqi: "AQI",
+    temperature: "Temperature",
+    humidity: "Humidity",
+    waterLevel: "Water Level",
+  };
+
+  const sensorTypeForMetric = metricToSensorType[metric];
+  const availableSensors = useMemo(
+    () =>
+      sensors.filter((sensor) => (sensor.sensorType || "AQI") === sensorTypeForMetric),
+    [sensors, sensorTypeForMetric]
+  );
+
   const locationOptions = useMemo(() => {
-    const keys = new Set<string>();
-    chartData.forEach((row) => {
-      Object.keys(row).forEach((key) => {
-        if (key !== "date") keys.add(key);
-      });
-    });
-    const derived = Array.from(keys).sort();
-    return derived.length > 0 ? derived : fallbackLocations;
-  }, [chartData]);
+    const locations = Array.from(new Set(availableSensors.map((sensor) => sensor.location))).sort();
+    return locations;
+  }, [availableSensors]);
 
   const didInitLocations = useRef(false);
   useEffect(() => {
     if (!didInitLocations.current && locationOptions.length > 0) {
       setSelectedLocations(locationOptions);
       didInitLocations.current = true;
+      return;
     }
-  }, [locationOptions]);
+    if (selectedLocations.length > 0 && locationOptions.length > 0) {
+      const next = selectedLocations.filter((loc) => locationOptions.includes(loc));
+      if (next.length !== selectedLocations.length) {
+        setSelectedLocations(next);
+      }
+    }
+    if (selectedLocations.length === 0 && locationOptions.length > 0 && didInitLocations.current) {
+      setSelectedLocations(locationOptions);
+    }
+  }, [locationOptions, selectedLocations]);
 
   const dateRangeOptions = [
     { value: "24hours", label: "Last 24 Hours" },
@@ -67,9 +88,17 @@ export function HistoricalData() {
     { value: "waterLevel", label: "Water Level" },
   ];
 
+  // Load sensors so we can keep a single source of truth for locations + types.
+  useEffect(() => {
+    fetchSensors(true)
+      .then((res) => setSensors(res.data || []))
+      .catch((err) => setApiError(err.message))
+      .finally(() => setSensorsLoading(false));
+  }, []);
+
   // Connect to backend: load aggregated chart data for historical trends.
   useEffect(() => {
-    if (selectedLocations.length === 0) {
+    if (selectedLocations.length === 0 || availableSensors.length === 0) {
       setApiChartData([]);
       setLoading(false);
       return;
@@ -96,7 +125,7 @@ export function HistoricalData() {
       .then((res) => setApiChartData(res.data || []))
       .catch((err) => setApiError(err.message))
       .finally(() => setLoading(false));
-  }, [dateRange, metric, selectedLocations, locationOptions.length, customFrom, customTo]);
+  }, [dateRange, metric, selectedLocations, locationOptions.length, customFrom, customTo, availableSensors.length]);
 
   // Sync local filters to global app state for cross-page consistency.
   useEffect(() => {
@@ -155,7 +184,7 @@ export function HistoricalData() {
   return (
     <div className="p-6 space-y-6">
       {/* Loading / Error Banner */}
-      {loading && <p className="text-xs text-zinc-400">Loading historical data...</p>}
+      {(loading || sensorsLoading) && <p className="text-xs text-zinc-400">Loading historical data...</p>}
       {apiError && <p className="text-xs text-red-400">Failed to load history: {apiError}</p>}
 
       {/* Header */}
@@ -229,7 +258,13 @@ export function HistoricalData() {
       </Card>
 
       {/* Empty State */}
-      {!loading && !apiError && filteredChartData.length === 0 && (
+      {!loading && !sensorsLoading && !apiError && availableSensors.length === 0 && (
+        <EmptyState
+          title="No sensors for this metric"
+          description="Add sensors of this type or choose a different metric."
+        />
+      )}
+      {!loading && !sensorsLoading && !apiError && availableSensors.length > 0 && filteredChartData.length === 0 && (
         <EmptyState title="No historical data available" description="Try a different date range or location." />
       )}
 

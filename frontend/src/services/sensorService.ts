@@ -1,10 +1,11 @@
-import { apiGet } from "../utils/apiClient";
+import { apiDelete, apiGet, apiPost, apiPut } from "../utils/apiClient";
 import type { ApiResponse } from "../types/response";
 import type { SensorDTO, SensorSummaryDTO } from "../types/sensor";
 
 // SensorService API client for Dashboard data
-export function fetchSensors() {
-  return apiGet<ApiResponse<SensorDTO[]>>("/sensors");
+export function fetchSensors(includeInactive?: boolean) {
+  const query = includeInactive ? "?includeInactive=true" : "";
+  return apiGet<ApiResponse<SensorDTO[]>>(`/sensors${query}`);
 }
 
 export function fetchSensorById(id: string) {
@@ -27,3 +28,19 @@ export function fetchSensorHealth() {
   return apiGet<ApiResponse<any>>("/sensors/health");
 }
 
+export function createSensor(payload: {
+  id: string;
+  locationId: string;
+  sensorType: string;
+  status: "online" | "offline" | "inactive";
+}) {
+  return apiPost<ApiResponse<SensorDTO>>("/sensors", payload);
+}
+
+export function updateSensor(id: string, payload: Partial<{ locationId: string; sensorType: string; status: "online" | "offline" | "inactive" }>) {
+  return apiPut<ApiResponse<SensorDTO | null>>(`/sensors/${id}`, payload);
+}
+
+export function deleteSensor(id: string) {
+  return apiDelete<ApiResponse<SensorDTO | null>>(`/sensors/${id}`);
+}

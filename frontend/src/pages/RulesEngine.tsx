@@ -113,16 +113,7 @@ export function RulesEngine() {
   }, []);
 
   const locationOptions = useMemo(
-    () =>
-      locations.length > 0
-        ? locations.map((loc) => ({ value: loc.id, label: loc.name }))
-        : [
-            { value: "salt-lake", label: "Salt Lake" },
-            { value: "new-town", label: "New Town" },
-            { value: "sector-v", label: "Sector V" },
-            { value: "rajarhat", label: "Rajarhat" },
-            { value: "park-street", label: "Park Street" },
-          ],
+    () => locations.map((loc) => ({ value: loc.id, label: loc.name })),
     [locations]
   );
 
@@ -482,7 +473,7 @@ export function RulesEngine() {
           }
         }}
       >
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-2xl">
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-4xl sm:max-w-4xl w-[min(900px,100%)]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="w-5 h-5 text-emerald-400" />

@@ -11,8 +11,44 @@ export async function listSensors(req: Request, res: Response, next: NextFunctio
   // UI Mapping: Dashboard sensor cards and map markers.
   // Frontend Consumption: Used by map + list widgets.
   try {
-    const data = await sensorService.listSensors();
+    const { includeInactive } = req.query as { includeInactive?: string };
+    const data = await sensorService.listSensors(includeInactive === "true");
     const response: ApiResponse<SensorDTO[]> = { data };
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /sensors
+export async function createSensor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await sensorService.createSensor(req.body);
+    const response: ApiResponse<SensorDTO> = { data };
+    res.status(201).json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PUT /sensors/:id
+export async function updateSensor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await sensorService.updateSensor(id, req.body);
+    const response: ApiResponse<SensorDTO | null> = { data };
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /sensors/:id (decommission)
+export async function deleteSensor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const data = await sensorService.decommissionSensor(id);
+    const response: ApiResponse<SensorDTO | null> = { data };
     res.json(response);
   } catch (err) {
     next(err);
@@ -87,4 +123,3 @@ export async function getSensorHealth(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
-

@@ -1,7 +1,10 @@
 // ReportService: report generation and retrieval
 
 import { db } from "../../utils/db";
+import PDFDocument from "pdfkit";
 import type { ReportDTO } from "../../types/report";
+import { listSensors } from "../SensorService/sensor.service";
+import { getHistoryAggregate } from "../HistoryService/history.service";
 import { DEV_MODE } from "../../config";
 import {
   createDevReport,
@@ -141,66 +144,190 @@ export async function downloadReportPdf(id: string): Promise<PdfPayload | null> 
     .slice(0, 60) || "report";
   const filename = `${safeName}-${report.id}.pdf`;
 
-  const lines = [
-    "Automated Environmental Gateway Report",
-    `Report ID: ${report.id}`,
-    `Name: ${report.name}`,
-    `Type: ${report.type}`,
-    `Zone: ${report.zone}`,
-    `Date Range: ${report.dateRange}`,
-    `Generated: ${report.generated}`,
-    `Average AQI: ${report.avgAqi}`,
-    `Highest Pollution: ${report.highestPollution}`,
-    `Water Alerts: ${report.waterAlerts}`,
-  ];
-
-  const buffer = buildSimplePdf(lines);
+  const { from, to, rangeLabel } = deriveRange(report.dateRange);
+  const sensors = await listSensors(true);
+  const historySeries = await getHistoryAggregate({
+    metric: "aqi",
+    from,
+    to,
+    interval: "1day",
+  });
+  const buffer = await buildRichPdf(report, sensors, historySeries, rangeLabel);
   return { filename, buffer };
 }
 
-function escapePdfText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+type PdfSensorRow = {
+  id: string;
+  location: string;
+  type: string;
+  value: string;
+  lastUpdate: string;
+};
+
+type ReportSensors = Awaited<ReturnType<typeof listSensors>>;
+
+function deriveRange(dateRange?: string) {
+  const now = new Date();
+  if (!dateRange) {
+    return { from: new Date(now.getTime() - 7 * 86400000).toISOString(), to: now.toISOString(), rangeLabel: "Last 7 days" };
+  }
+  if (dateRange.toLowerCase().includes("last 24")) {
+    return { from: new Date(now.getTime() - 1 * 86400000).toISOString(), to: now.toISOString(), rangeLabel: "Last 24 hours" };
+  }
+  if (dateRange.toLowerCase().includes("last 7")) {
+    return { from: new Date(now.getTime() - 7 * 86400000).toISOString(), to: now.toISOString(), rangeLabel: "Last 7 days" };
+  }
+  if (dateRange.toLowerCase().includes("last 30")) {
+    return { from: new Date(now.getTime() - 30 * 86400000).toISOString(), to: now.toISOString(), rangeLabel: "Last 30 days" };
+  }
+  const parts = dateRange.split(" - ");
+  if (parts.length === 2) {
+    const start = new Date(parts[0]);
+    const end = new Date(parts[1]);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      return { from: start.toISOString(), to: end.toISOString(), rangeLabel: `${parts[0]} - ${parts[1]}` };
+    }
+  }
+  return { from: new Date(now.getTime() - 7 * 86400000).toISOString(), to: now.toISOString(), rangeLabel: dateRange };
 }
 
-function buildSimplePdf(lines: string[]): Buffer {
-  const contentLines = lines.map((line, index) => {
-    const y = 760 - index * 16;
-    return `1 0 0 1 50 ${y} Tm (${escapePdfText(line)}) Tj`;
+function formatDate(value?: string) {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
   });
+}
 
-  const content = `BT
-/F1 12 Tf
-${contentLines.join("\n")}
-ET`;
+function summarizeSensors(sensors: ReportSensors): PdfSensorRow[] {
+  return sensors
+    .slice(0, 20)
+    .map((sensor) => ({
+      id: sensor.id,
+      location: sensor.location,
+      type: sensor.sensorType || "AQI",
+      value:
+        sensor.sensorType === "Temperature"
+          ? `${sensor.temperature}°C`
+          : sensor.sensorType === "Humidity"
+            ? `${sensor.humidity}%`
+            : sensor.sensorType === "Water Level"
+              ? `${sensor.waterLevel}m`
+              : `${sensor.aqi}`,
+      lastUpdate: formatDate(sensor.lastUpdate),
+    }));
+}
 
-  const length = Buffer.byteLength(content, "utf8");
-  const objects: string[] = [];
-  objects.push("1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj");
-  objects.push("2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj");
-  objects.push(
-    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj"
-  );
-  objects.push(`4 0 obj << /Length ${length} >> stream\n${content}\nendstream endobj`);
-  objects.push("5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj");
+function buildAqiSeries(history: any[]) {
+  return history
+    .map((row) => {
+      const values = Object.entries(row)
+        .filter(([key]) => key !== "date")
+        .map(([, value]) => Number(value))
+        .filter((value) => Number.isFinite(value));
+      if (!values.length) return null;
+      const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+      return { date: row.date, value: avg };
+    })
+    .filter(Boolean) as { date: string; value: number }[];
+}
 
-  let pdf = "%PDF-1.4\n";
-  let byteLength = Buffer.byteLength(pdf, "utf8");
-  const offsets: number[] = [];
+function drawCard(doc: PDFKit.PDFDocument, x: number, y: number, title: string, value: string, accent: string) {
+  doc
+    .roundedRect(x, y, 160, 60, 8)
+    .fillAndStroke("#0f172a", "#334155");
+  doc.fillColor(accent).fontSize(10).text(title, x + 12, y + 10);
+  doc.fillColor("#e2e8f0").fontSize(16).text(value, x + 12, y + 28);
+}
 
-  for (const obj of objects) {
-    offsets.push(byteLength);
-    const chunk = `${obj}\n`;
-    pdf += chunk;
-    byteLength += Buffer.byteLength(chunk, "utf8");
+function drawLineChart(doc: PDFKit.PDFDocument, x: number, y: number, width: number, height: number, series: { date: string; value: number }[]) {
+  doc.roundedRect(x, y, width, height, 8).stroke("#334155");
+  if (series.length === 0) {
+    doc.fillColor("#94a3b8").fontSize(10).text("No chart data available", x + 12, y + height / 2);
+    return;
   }
-
-  const xrefOffset = byteLength;
-  let xref = "xref\n0 6\n0000000000 65535 f \n";
-  offsets.forEach((offset) => {
-    xref += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  const values = series.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = 24;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+  const points = series.map((point, idx) => {
+    const ratio = max === min ? 0.5 : (point.value - min) / (max - min);
+    return {
+      x: x + padding + (chartWidth * idx) / (series.length - 1 || 1),
+      y: y + padding + chartHeight - ratio * chartHeight,
+    };
   });
-  const trailer = `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  pdf += xref + trailer;
+  doc.strokeColor("#1d4ed8").lineWidth(2);
+  points.forEach((pt, idx) => {
+    if (idx === 0) doc.moveTo(pt.x, pt.y);
+    else doc.lineTo(pt.x, pt.y);
+  });
+  doc.stroke();
+  doc.fillColor("#94a3b8").fontSize(9).text(`Min ${min.toFixed(1)} • Max ${max.toFixed(1)}`, x + padding, y + height - 16);
+}
 
-  return Buffer.from(pdf, "utf8");
+function drawTable(doc: PDFKit.PDFDocument, x: number, y: number, rows: PdfSensorRow[]) {
+  const colWidths = [80, 120, 90, 80, 160];
+  const headers = ["Sensor ID", "Location", "Type", "Value", "Last Update"];
+  doc.fillColor("#e2e8f0").fontSize(10);
+  headers.forEach((header, idx) => {
+    doc.text(header, x + colWidths.slice(0, idx).reduce((a, b) => a + b, 0), y, { width: colWidths[idx] });
+  });
+  let cursorY = y + 16;
+  doc.strokeColor("#1f2937").lineWidth(1);
+  rows.forEach((row) => {
+    doc.moveTo(x, cursorY - 4).lineTo(x + colWidths.reduce((a, b) => a + b, 0), cursorY - 4).stroke();
+    const cells = [row.id, row.location, row.type, row.value, row.lastUpdate];
+    cells.forEach((cell, idx) => {
+      doc.fillColor("#cbd5f5").fontSize(9).text(cell, x + colWidths.slice(0, idx).reduce((a, b) => a + b, 0), cursorY, {
+        width: colWidths[idx],
+      });
+    });
+    cursorY += 18;
+  });
+}
+
+function buildRichPdf(
+  report: ReportDTO,
+  sensors: ReportSensors,
+  history: any[],
+  rangeLabel: string
+): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const doc = new PDFDocument({ size: "A4", margin: 40 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+
+    doc.fillColor("#0f172a");
+    doc.fontSize(20).text("Automated Environmental Gateway Report", { align: "left" });
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor("#64748b").text(`Generated: ${formatDate(report.generated)}`);
+    doc.moveDown(1);
+
+    doc.fillColor("#e2e8f0").fontSize(12).text(report.name);
+    doc.fillColor("#94a3b8").fontSize(10).text(`Report ID: ${report.id}`);
+    doc.fillColor("#94a3b8").fontSize(10).text(`Type: ${report.type} • Zone: ${report.zone}`);
+    doc.fillColor("#94a3b8").fontSize(10).text(`Date Range: ${rangeLabel}`);
+    doc.moveDown(1);
+
+    drawCard(doc, 40, 170, "Average AQI", String(report.avgAqi), "#38bdf8");
+    drawCard(doc, 220, 170, "Highest Pollution", report.highestPollution || "N/A", "#f97316");
+    drawCard(doc, 400, 170, "Water Alerts", String(report.waterAlerts), "#facc15");
+
+    doc.moveDown(6);
+    doc.fontSize(12).fillColor("#e2e8f0").text("AQI Trend (Avg across locations)");
+    drawLineChart(doc, 40, 260, 520, 160, buildAqiSeries(history));
+
+    doc.addPage();
+    doc.fillColor("#e2e8f0").fontSize(12).text("Sensor Snapshot");
+    doc.moveDown(0.5);
+    drawTable(doc, 40, 120, summarizeSensors(sensors));
+
+    doc.end();
+  });
 }

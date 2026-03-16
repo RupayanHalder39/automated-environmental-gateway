@@ -1,20 +1,19 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Radio, 
-  Activity, 
-  Bell, 
-  BarChart3, 
+import { useEffect, useRef, useState } from "react";
+import {
+  LayoutDashboard,
+  Radio,
+  Activity,
+  Bell,
+  BarChart3,
   Settings as SettingsIcon,
   FileText,
   Wifi,
   AlertTriangle,
   Database,
-  Search,
   User,
-  Server
+  Server,
 } from "lucide-react";
-import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -30,23 +29,35 @@ const navItems = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/sensors", label: "Sensors", icon: Radio },
   { path: "/device-health", label: "Device Health", icon: Activity },
-  { path: "/alerts", label: "Alerts", icon: Bell },
+  { path: "/alerts", label: "Alerts", icon: Bell, disabled: true },
   { path: "/historical-data", label: "Historical Data", icon: BarChart3 },
   { path: "/rules-engine", label: "Rules Engine", icon: AlertTriangle },
-  { path: "/data-sanity", label: "Data Sanity", icon: Database },
-  { path: "/bulk-sync", label: "Bulk Sync", icon: Wifi },
+  { path: "/data-sanity", label: "Data Sanity", icon: Database, disabled: true },
+  { path: "/bulk-sync", label: "Bulk Sync", icon: Wifi, disabled: true },
   { path: "/reports", label: "Reports", icon: FileText },
-  { path: "/public-api", label: "Public API", icon: Server },
-  { path: "/settings", label: "Settings", icon: SettingsIcon },
+  { path: "/public-api", label: "Public API", icon: Server, disabled: true },
+  { path: "/settings", label: "Settings", icon: SettingsIcon, disabled: true },
 ];
 
 export function DashboardLayout() {
   const location = useLocation();
+  const [devNotice, setDevNotice] = useState<string | null>(null);
+  const noticeRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (!devNotice) return;
+      if (noticeRef.current && noticeRef.current.contains(event.target as Node)) return;
+      setDevNotice(null);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [devNotice]);
   
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       {/* Left Sidebar */}
-      <aside className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+      <aside className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col z-50">
         <div className="p-6 border-b border-zinc-800">
           <h1 className="text-xl font-bold text-emerald-400">AUTOMATED</h1>
           <h2 className="text-sm text-zinc-400">Environmental Gateway</h2>
@@ -56,7 +67,22 @@ export function DashboardLayout() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
-            
+            const isDisabled = item.disabled;
+
+            if (isDisabled) {
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => setDevNotice("Development in progress")}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-500 cursor-pointer blur-[0.6px] opacity-70 hover:bg-zinc-800/40"
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
@@ -88,15 +114,8 @@ export function DashboardLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6">
-          <div className="flex-1 max-w-xl relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-            <Input
-              type="search"
-              placeholder="Search sensors, locations, devices..."
-              className="pl-10 bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
-            />
-          </div>
+        <header className="h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 z-50">
+          <div className="flex-1" />
           
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" className="relative">
@@ -137,6 +156,14 @@ export function DashboardLayout() {
             </DropdownMenu>
           </div>
         </header>
+        {devNotice && (
+          <div
+            ref={noticeRef}
+            className="fixed right-6 top-20 z-50 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 shadow-lg"
+          >
+            {devNotice}
+          </div>
+        )}
         
         {/* Page Content */}
         <main className="flex-1 overflow-auto bg-zinc-950">

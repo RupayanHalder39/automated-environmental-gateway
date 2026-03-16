@@ -29,6 +29,21 @@ function intervalBucket(interval?: string) {
   return "hour";
 }
 
+function sensorTypeForMetric(metric?: string) {
+  switch (metric) {
+    case "temperature":
+      return "Temperature";
+    case "humidity":
+      return "Humidity";
+    case "waterLevel":
+      return "Water Level";
+    case "aqi":
+      return "AQI";
+    default:
+      return null;
+  }
+}
+
 export async function getHistoryReadings(query: any) {
   // DEV_MODE: return generated historical readings without DB access.
   if (DEV_MODE) {
@@ -73,13 +88,14 @@ export async function getHistoryReadings(query: any) {
 
 export async function getHistoryAggregate(query: any) {
   // DEV_MODE: return generated aggregates without DB access.
-  if (DEV_MODE) return getDevHistoryAggregate(query?.metric);
+  if (DEV_MODE) return getDevHistoryAggregate(query);
 
   // Returns aggregated chart data for Historical Data UI.
   // Tables: sensor_readings, sensors, devices.
   const { metric, from, to, interval, location } = query;
   const column = metricColumn(metric);
   const bucket = intervalBucket(interval);
+  const sensorType = sensorTypeForMetric(metric);
 
   const result = await db.query(
     `SELECT
@@ -91,10 +107,11 @@ export async function getHistoryAggregate(query: any) {
      JOIN devices d ON d.id = s.device_id
      WHERE sr.recorded_at BETWEEN $1 AND $2
        AND ($3::text IS NULL OR d.location_name = $3)
+       AND ($4::text IS NULL OR s.sensor_type = $4)
        AND sr.${column} IS NOT NULL
      GROUP BY 1, 2
      ORDER BY 1 ASC`,
-    [from, to, location || null]
+    [from, to, location || null, sensorType]
   );
 
   // Shape results into chart-friendly records.
