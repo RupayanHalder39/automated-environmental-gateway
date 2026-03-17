@@ -1,0 +1,56 @@
+FRONTEND INTERVIEW CHEATSHEET
+
+Stack
+- React + Vite + TypeScript
+- Tailwind + shadcn/Radix UI
+- API client in src/utils/apiClient.ts
+
+Key pages
+- Dashboard: live summary + map + latest activity
+- Sensors: inventory + details dialog
+- Device Health: filters + list
+- Historical Data: charts + table
+- Rules Engine: dynamic rule editor
+- Reports: generate + download PDF
+
+Single source of truth (important)
+- Always fetch sensor inventory first.
+- Filters (locations/metrics) are derived from sensors.
+- Avoid hardcoded location lists.
+
+ELI5 → Senior Q&A
+Q: How does the UI get data?
+- ELI5: It asks the backend and shows the answer.
+- Senior: API service methods wrap fetch/axios, normalize responses, and update React state hooks.
+
+Q: How do you keep UI consistent?
+- ELI5: Use the same building blocks everywhere.
+- Senior: Reuse shared UI components; derive filters from sensor inventory to avoid drift.
+
+Q: How do you handle empty data?
+- ELI5: Show a friendly empty box.
+- Senior: Use EmptyState components and guard against zero‑series charts.
+
+Q: How are dialogs handled?
+- ELI5: A pop‑up box appears for details.
+- Senior: Radix Dialog with controlled state; overlay constrained to avoid covering nav/sidebar.
+
+Charts & metrics
+- History charts plotted per location with metric‑specific units.
+- Tooltip formatting uses human readable dates.
+
+Debugging tips
+- If localhost:5173 is blank, Vite isn’t running.
+- Use Full Stack Debug (starts backend + frontend).
+- Check CORS/proxy if API requests fail.
+
+If asked about UX decisions
+- Filters support multi‑select with checkboxes.
+- Default “All Locations/All Status” for clarity.
+- Disabled sections show “Development in progress” overlay.
+
+What to emphasize in interview
+- Data‑driven UI with derived options.
+- Robust empty/error handling.
+- Clean separation between services and UI components.
+

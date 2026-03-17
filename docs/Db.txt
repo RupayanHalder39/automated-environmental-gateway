@@ -1,0 +1,53 @@
+DATABASE INTERVIEW CHEATSHEET
+
+Schema (key tables)
+- locations (uuid id, name, slug)
+- devices (id/code, status, location_id)
+- sensors (id/code, type, status, location_id, metadata)
+- alert_rules (conditions_json, location_ids[], action_ids[], is_active)
+- alerts (rule_id, status, created_at)
+- history/telemetry tables (time‑series readings)
+
+Why UUID for locations?
+- ELI5: Names can repeat; IDs don’t.
+- Senior: UUIDs guarantee uniqueness across regions and keep rule matching accurate even if names change.
+
+Typical SQL migration questions
+Q: How do you evolve schema safely?
+A: Use additive migrations (new columns/tables) and backfill. Avoid breaking changes; add defaults.
+
+Q: How to model rule conditions?
+A: Store JSONB array of conditions (metric/operator/threshold) and evaluate in app logic. Alternative is join tables, but JSONB is flexible for dynamic rule creation.
+
+Q: How do you optimize history queries?
+A: Partition by time, index (sensor_id, timestamp), pre‑aggregate by interval, cache hot windows.
+
+Q: How do you handle device/sensor deletions?
+A: Soft delete (status=inactive) to preserve history; hard delete only if allowed.
+
+ELI5 → Senior examples
+1) What is normalization?
+- ELI5: Keep each type of thing in its own box.
+- Senior: Normalize entities (locations/devices/sensors), relate via IDs for consistency.
+
+2) Why store telemetry separately?
+- ELI5: It’s a lot of data; keep it in a big bin.
+- Senior: Time‑series grows fast; separate storage and partitions keep queries fast.
+
+3) How do you ensure data quality?
+- ELI5: Check numbers before saving.
+- Senior: Validate ranges, reject invalid metrics, and keep consistent units.
+
+If asked to explain your migrations
+- 00_base_schema.sql: creates core tables + sample data
+- 20260315_locations_rules.sql: adds locations + rule JSON columns + location_id relationships
+
+What to say about transactions
+- Use transactions for multi‑step writes (e.g., create rule + actions).
+- For ingest, batch insert with rollback on validation failure.
+
+Common pitfalls (be ready)
+- Timezone mismatches (always store UTC).
+- No index on time‑series (slow charts).
+- Soft delete not respected by queries.
+

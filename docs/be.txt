@@ -1,0 +1,64 @@
+BACKEND INTERVIEW CHEATSHEET
+
+Stack
+- Node.js + Express
+- Modular services: Sensor, History, Rule, Report, Alert, Device, Location
+- DEV_MODE devData for mock ingestion
+
+How a request flows (ELI5)
+- A request comes in → controller passes to service → service validates → repository/DB → response back.
+
+Key files to mention
+- /backend/src/server.ts (server boot)
+- /backend/src/app.ts (middleware/routes)
+- /backend/src/modules/* (controllers/services/routes)
+- /backend/src/services/devData.ts (DEV_MODE data store)
+- /backend/src/utils/ruleMatcher.ts (rules evaluation)
+
+Important APIs (examples)
+- /api/v1/sensors (list/create/update/decommission)
+- /api/v1/history (trend + aggregates)
+- /api/v1/rules (create/edit/toggle)
+- /api/v1/reports (generate + download PDF)
+- /api/v1/dev/ingest (DEV_MODE ingest)
+
+Rules Engine (good talking points)
+- Stores conditions as JSON array.
+- OR logic across conditions; AND logic between condition + location matching.
+- Filters out disabled rules (is_active=false).
+
+History Aggregation
+- Accepts metric/date range/location.
+- Returns series per location and computed stats (avg/high/low).
+
+DEV_MODE
+- Reads from devData store instead of DB.
+- Supports backfill generation for realistic history.
+
+PDF Report Generation
+- Uses pdfkit to produce styled PDF (cards, chart, table).
+- Why: clients want a shareable static report, not just UI.
+
+ELI5 → Senior Q&A
+Q: How do you prevent bad data?
+- ELI5: We check it before we save.
+- Senior: We validate payloads, normalize metrics, and only accept known types/units.
+
+Q: How do you make rules fast?
+- ELI5: We keep rules simple and check only what we need.
+- Senior: Evaluate only active rules, match on location UUID, short‑circuit when condition matches.
+
+Q: How do you debug backend errors?
+- ELI5: Put a breakpoint where it breaks.
+- Senior: Set breakpoints in controllers/services, inspect inputs/outputs; use VS Code launch config with npm start.
+
+Common backend issues & fixes
+- CORS: allow FE origin, ensure credentials config is correct.
+- DEV_MODE mismatch: ensure backend .env and devData are aligned.
+- Type errors: mismatched DTO between FE and BE.
+
+What to emphasize in interview
+- Clean separation of concerns.
+- Validations + single source of truth for sensor inventory.
+- Ability to run without hardware via DEV_MODE.
+

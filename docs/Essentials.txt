@@ -1,0 +1,95 @@
+AUTOMATED ENVIRONMENTAL GATEWAY — INTERVIEW ESSENTIALS
+
+Purpose (1‑liner)
+- A real‑time environmental monitoring platform that ingests sensor telemetry,
+ stores it, evaluates rules/alerts, and visualizes device health + historical trends.
+
+System at a glance (simple)
+- Sensors send readings → Backend stores/aggregates → Frontend shows live + historical dashboards.
+- DEV_MODE allows simulated data ingestion for demos/testing.
+
+Architecture (how to explain it)
+- ELI5: The frontend is the screen, the backend is the brain, and the database is the memory.
+- Senior: Layered architecture with controllers → services → repositories/utils. DEV_MODE switches data source to devData for predictable demos.
+
+Flow diagram (talking aid)
+Mermaid (copy into docs/markdown if needed):
+```
+flowchart LR
+  Sensors -->|HTTP ingest| API[Backend API]
+  API -->|validate/normalize| Service[Service Layer]
+  Service -->|store| DB[(PostgreSQL)]
+  Service -->|evaluate rules| Rules[Rule Matcher]
+  Rules --> Alerts[Alerts/Events]
+  FE[Frontend UI] -->|fetch| API
+  API -->|summary/history| FE
+  Dev[DEV data generator] -->|/dev/ingest| API
+```
+
+How APIs work here (simple → senior)
+- ELI5: The frontend asks the backend for data; the backend answers from the database.
+- Senior: REST endpoints under /api/v1/*; controllers validate inputs, services orchestrate business logic, repositories/queries fetch or persist data; responses are normalized DTOs for FE.
+
+Key parts you should explain
+1) Data flow (live)
+- Ingest endpoint receives readings.
+- Data validated/normalized.
+- Stored in DB (or dev in‑memory in DEV_MODE).
+- Rules engine evaluates thresholds and triggers alerts.
+- Frontend polls/requests latest summaries and renders charts.
+
+2) Data flow (historical)
+- Frontend asks for history by metric + date range.
+- Backend aggregates by interval and location.
+- Charts/tables built from normalized series.
+
+3) Single source of truth
+- Sensor inventory (types/locations/status) is the source of truth.
+- FE uses sensor types to decide what metrics to show.
+- Avoids hardcoded lists in pages.
+
+4) DEV_MODE vs PROD
+- DEV_MODE: simulated sensors + mock history, easy demo.
+- PROD: real DB reads + real telemetry ingestion.
+
+5) Key modules (talking points)
+- SensorService: inventory + latest readings
+- HistoryService: time‑series aggregation
+- RuleService + ruleMatcher: condition evaluation
+- ReportService: report metadata + PDF generation
+
+Interview Qs (Explain like I’m 5 → Senior)
+Q1. What problem does this app solve?
+- ELI5: It watches air/water sensors and tells us if things are okay.
+- Senior: It provides end‑to‑end telemetry ingestion, aggregation, and alerting for environmental IoT devices with real‑time dashboards and historical analytics.
+
+Q2. What happens when a sensor sends data?
+- ELI5: We catch the message, save it, and update the screen.
+- Senior: Ingest pipeline validates, normalizes metrics, stores in time‑series storage, updates summaries, and triggers rule evaluation; client refreshes via API calls.
+
+Q3. How do you support demos without hardware?
+- ELI5: We have a fake sensor generator.
+- Senior: DEV_MODE routes API to in‑memory devData + script that simulates telemetry, including historical backfill.
+
+Q4. How do you prevent hardcoding in the UI?
+- ELI5: We read the sensor list first.
+- Senior: FE fetches sensor inventory and uses types/locations as dynamic options for filters and charts.
+
+Q5. What are the main risks?
+- ELI5: Bad data or too much data.
+- Senior: Data quality/validation, performance of aggregation, alert spam, and schema drift; mitigated via validators + normalized metric mapping + scoped aggregation.
+
+What you must know (fast facts)
+- Backend uses Express + services/validators.
+- Frontend uses React + Vite + API client.
+- DEV_MODE toggles devData vs DB.
+- Rule engine uses OR across conditions + location matching.
+- Locations are UUID‑based for accuracy.
+
+If asked “why this design?”
+- Clear separation of concerns (controllers, services, utils).
+- Simple scaling: ingest + history aggregation are isolated services.
+- DEV_MODE makes testing reliable even without hardware.
+
+If asked “how would you scale?”
+- Partition time‑series tables, use background jobs for aggregation, cache summary endpoints, use message queues for ingest.
